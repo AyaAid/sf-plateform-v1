@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: stars_factory_db
+    environment:
+      POSTGRES_USER: stars
+      POSTGRES_PASSWORD: stars
+      POSTGRES_DB: stars_factory
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
