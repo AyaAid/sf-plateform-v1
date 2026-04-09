@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { prisma } from "../db/prisma";import path from "path";
+import { prisma } from "../db/prisma";
+import path from "path";
 import fs from "fs/promises";
 
 export const chaptersRouter = Router();

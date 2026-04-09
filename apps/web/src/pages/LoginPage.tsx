@@ -1,8 +1,13 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
+import { useAuthContext } from "@/context/AuthContext";
 
 export function LoginPage() {
+  const { login } = useAuthContext();
+  const navigate = useNavigate();
+
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -14,8 +19,8 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await new Promise((r) => setTimeout(r, 500));
-
+      await login(email, password);
+      navigate("/app", { replace: true });
     } catch {
       setError("Connexion impossible. Vérifie tes identifiants.");
     } finally {
