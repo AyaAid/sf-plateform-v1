@@ -8,6 +8,15 @@ import { useAuthContext } from "@/context/AuthContext";
 import { useCourses } from "@/hooks/useCourses";
 import { useProgress } from "@/hooks/useProgress";
 
+const COURSE_PALETTE = [
+  { from: "rgba(108,92,231,0.9)",  to: "rgba(79,70,229,0.9)"  },
+  { from: "rgba(16,185,129,0.9)",  to: "rgba(13,148,136,0.9)" },
+  { from: "rgba(236,72,153,0.9)",  to: "rgba(225,29,72,0.9)"  },
+  { from: "rgba(249,115,22,0.9)",  to: "rgba(245,158,11,0.9)" },
+  { from: "rgba(6,182,212,0.9)",   to: "rgba(14,165,233,0.9)" },
+  { from: "rgba(217,70,239,0.9)",  to: "rgba(168,85,247,0.9)" },
+];
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
@@ -31,9 +40,30 @@ export function DashboardPage() {
   const inProgress = coursesWithProgress.filter((c) => c.progress > 0 && c.progress < 100);
 
   const stats = [
-    { label: "Cours disponibles", value: String(courses.length), icon: Award, gradientClass: "from-primary to-purple-500" },
-    { label: "Chapitres terminés", value: String(progressRecords.filter((p) => p.status === "COMPLETED").length), icon: TrendingUp, gradientClass: "from-purple-500 to-pink-500" },
-    { label: "En cours", value: String(progressRecords.filter((p) => p.status === "IN_PROGRESS").length), icon: Clock, gradientClass: "from-secondary to-cyan-500" },
+    {
+      label: "Cours disponibles",
+      value: String(courses.length),
+      icon: Award,
+      iconBg: "rgba(139,92,246,0.2)",
+      iconGlow: "0 0 14px rgba(139,92,246,0.5), 0 0 28px rgba(139,92,246,0.2)",
+      iconColor: "text-violet-400",
+    },
+    {
+      label: "Chapitres terminés",
+      value: String(progressRecords.filter((p) => p.status === "COMPLETED").length),
+      icon: TrendingUp,
+      iconBg: "rgba(16,185,129,0.2)",
+      iconGlow: "0 0 14px rgba(16,185,129,0.5), 0 0 28px rgba(16,185,129,0.2)",
+      iconColor: "text-emerald-400",
+    },
+    {
+      label: "En cours",
+      value: String(progressRecords.filter((p) => p.status === "IN_PROGRESS").length),
+      icon: Clock,
+      iconBg: "rgba(6,182,212,0.2)",
+      iconGlow: "0 0 14px rgba(6,182,212,0.5), 0 0 28px rgba(6,182,212,0.2)",
+      iconColor: "text-cyan-400",
+    },
   ];
 
   return (
@@ -78,15 +108,15 @@ export function DashboardPage() {
                     <div className="mt-2 text-4xl text-foreground">{s.value}</div>
                   </div>
                   <div
-                    className={cn("rounded-xl p-3", s.gradientClass)}
+                    className="rounded-xl p-3"
                     style={{
-                      background: "rgba(108,92,231,0.18)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      boxShadow: "0 0 10px rgba(108,92,231,0.35)",
+                      background: s.iconBg,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      boxShadow: s.iconGlow,
                       backdropFilter: "blur(10px)",
                     }}
                   >
-                    <Icon className="h-6 w-6 text-primary" />
+                    <Icon className={cn("h-6 w-6", s.iconColor)} />
                   </div>
                 </div>
               </HudFrame>
@@ -114,10 +144,13 @@ export function DashboardPage() {
             </HudFrame>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {inProgress.map((course) => (
+              {inProgress.map((course, idx) => {
+                const palette = COURSE_PALETTE[idx % COURSE_PALETTE.length];
+                return (
                 <HudFrame key={course.id}>
-                  <div className="relative mb-4 flex h-32 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary to-secondary"
-                    style={{ boxShadow: "var(--glow-purple-sm)" }}
+                  <div
+                    className="relative mb-4 flex h-32 items-center justify-center overflow-hidden rounded-xl"
+                    style={{ background: `linear-gradient(135deg, ${palette.from}, ${palette.to})` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                     <div className="relative z-10 h-16 w-16 rotate-12 rounded-xl border-2 border-white/30 backdrop-blur-sm">
@@ -143,7 +176,8 @@ export function DashboardPage() {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </HudFrame>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

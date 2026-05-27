@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
-import type { ChapterWithMarkdown } from "@stars-factory/shared";
+import type { ChapterWithBlocks } from "@stars-factory/shared";
 
 export function useChapter(chapterId: string | undefined) {
   return useQuery({
     queryKey: ["chapter", chapterId],
-    queryFn: () => apiClient.get<ChapterWithMarkdown>(`/chapters/${chapterId}`),
+    queryFn: () => apiClient.get<ChapterWithBlocks>(`/chapters/${chapterId}`),
     enabled: !!chapterId,
   });
 }

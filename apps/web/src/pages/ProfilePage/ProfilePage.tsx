@@ -1,23 +1,34 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Camera,
   Mail,
-  MapPin,
   Calendar,
   Sparkles,
   Zap,
   Target,
   Award,
   Shield,
-  Edit3,
   LogOut,
   ArrowRight,
+  Clock,
+  Flame,
+  Pencil,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/Button";
+import { useAuthContext } from "@/context/AuthContext";
+import { useCourses } from "@/hooks/useCourses";
+import { useProgress } from "@/hooks/useProgress";
+import { useGoals } from "@/hooks/useGoals";
+import { GoalModal } from "@/pages/MyLearningPage/GoalModal";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
 
 type BadgeItem = {
@@ -36,24 +47,26 @@ type ActivityItem = {
 };
 
 export function ProfilePage() {
-  const user = {
-    name: "Tom Cruise",
-    handle: "@boss",
-    email: "tommy@lastar.io",
-    location: "Île-de-France, FR",
-    joined: "Joined Jan 2026",
-    bio: "Yes, I am Tom Cruise and I love Aya",
-    level: 12,
-    streakDays: 14,
-    xp: 18420,
-    nextLevelXp: 20000,
-  };
+  const { user: authUser, logout } = useAuthContext();
+  const navigate = useNavigate();
+  const { data: courses = [] } = useCourses();
+  const { data: progressRecords = [] } = useProgress();
+  const { goals, saveGoals } = useGoals();
+  const [showGoalModal, setShowGoalModal] = React.useState(false);
+
+  const completedCount = progressRecords.filter((p) => p.status === "COMPLETED").length;
+  const inProgressCount = progressRecords.filter((p) => p.status === "IN_PROGRESS").length;
 
   const stats = [
-    { label: "Courses Enrolled", value: "8", icon: Award, accent: "purple" as const },
-    { label: "Hours Learned", value: "47", icon: Zap, accent: "blue" as const },
-    { label: "Skills Mastered", value: "12", icon: Target, accent: "purple" as const },
+    { label: "Cours disponibles", value: String(courses.length), icon: Award, accent: "purple" as const },
+    { label: "Chapitres terminés", value: String(completedCount), icon: Target, accent: "purple" as const },
+    { label: "En cours", value: String(inProgressCount), icon: Zap, accent: "blue" as const },
   ];
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
 
   const badges: BadgeItem[] = [
     {
@@ -100,9 +113,9 @@ export function ProfilePage() {
     },
   ];
 
-  const progressPct = Math.min(100, Math.round((user.xp / user.nextLevelXp) * 100));
 
   return (
+    <>
     <div className="relative p-8">
       <div className="pointer-events-none absolute inset-0 opacity-40 space-grid" />
 
@@ -143,81 +156,36 @@ export function ProfilePage() {
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-foreground">{user.name}</h1>
-                    <span className="text-sm text-muted-foreground">{user.handle}</span>
+                    <h1 className="text-foreground">{authUser?.name ?? "Utilisateur"}</h1>
                     <span className="ml-2 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-foreground">
                       <Sparkles className="h-3.5 w-3.5 text-secondary" />
-                      Level {user.level}
+                      {completedCount} chapitres terminés
                     </span>
                   </div>
-
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{user.bio}</p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Mail className="h-4 w-4 text-secondary" />
-                      {user.email}
+                      {authUser?.email}
                     </span>
-                    <span className="inline-flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      {user.location}
-                    </span>
-                    <span className="inline-flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-secondary" />
-                      {user.joined}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-secondary" />
-                      {user.streakDays} Day Streak
-                    </span>
-                    <span className="inline-flex items-center gap-2">
-                      <Target className="h-4 w-4 text-primary" />
-                      {user.xp.toLocaleString()} XP
-                    </span>
+                    {authUser?.createdAt && (
+                      <span className="inline-flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-secondary" />
+                        Inscrit en {formatDate(authUser.createdAt)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex shrink-0 gap-2">
-                <Button variant="secondary" className="rounded-xl" type="button">
-                  <Edit3 className="h-4 w-4" />
-                  Edit Profile
-                </Button>
-                <Button variant="ghost" className="rounded-xl" type="button">
+                <Button variant="ghost" className="rounded-xl" type="button" onClick={handleLogout}>
                   <LogOut className="h-4 w-4" />
-                  Sign out
+                  Déconnexion
                 </Button>
               </div>
             </div>
 
-            <div className="mt-2">
-              <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Next level</span>
-                <span>
-                  {user.xp.toLocaleString()} / {user.nextLevelXp.toLocaleString()} XP ({progressPct}%)
-                </span>
-              </div>
-              <div
-                className="h-2 w-full rounded-full border"
-                style={{
-                  background: "rgba(108, 92, 231, 0.08)",
-                  borderColor: "rgba(108, 92, 231, 0.18)",
-                  boxShadow: "inset 0 2px 8px rgba(0,0,0,0.35)",
-                }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                    boxShadow: "0 0 10px rgba(108, 92, 231, 0.35), 0 0 18px rgba(76, 201, 240, 0.2)",
-                  }}
-                />
-              </div>
-            </div>
           </div>
         </div>
 
@@ -262,6 +230,85 @@ export function ProfilePage() {
             );
           })}
         </div>
+
+        {/* ── Objectifs ── */}
+        <section
+          className="rounded-2xl border p-6"
+          style={{
+            background: "rgba(26, 31, 51, 0.6)",
+            backdropFilter: "blur(12px)",
+            borderColor: "rgba(108, 92, 231, 0.2)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5), 0 0 25px rgba(108, 92, 231, 0.15)",
+          }}
+        >
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-foreground">Mes objectifs</h2>
+              <div className="h-[1px] w-24 bg-gradient-to-r from-violet-500/40 to-transparent" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGoalModal(true)}
+              className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-muted-foreground transition hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-300"
+            >
+              <Pencil className="size-3" />
+              Modifier
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Daily */}
+            <div
+              className="flex items-center gap-4 rounded-2xl p-4"
+              style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", boxShadow: "0 0 20px rgba(139,92,246,0.08)" }}
+            >
+              <div
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "rgba(139,92,246,0.15)", boxShadow: "0 0 12px rgba(139,92,246,0.4)" }}
+              >
+                <Clock className="size-5 text-violet-400" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Quotidien</div>
+                <div className="text-xl font-bold text-violet-300">{goals.daily} <span className="text-xs font-normal text-muted-foreground">min</span></div>
+              </div>
+            </div>
+
+            {/* Weekly */}
+            <div
+              className="flex items-center gap-4 rounded-2xl p-4"
+              style={{ background: "rgba(34,211,238,0.08)", border: "1px solid rgba(34,211,238,0.2)", boxShadow: "0 0 20px rgba(34,211,238,0.08)" }}
+            >
+              <div
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "rgba(34,211,238,0.15)", boxShadow: "0 0 12px rgba(34,211,238,0.4)" }}
+              >
+                <Target className="size-5 text-cyan-400" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Par semaine</div>
+                <div className="text-xl font-bold text-cyan-300">{goals.weekly} <span className="text-xs font-normal text-muted-foreground">capsules</span></div>
+              </div>
+            </div>
+
+            {/* Streak */}
+            <div
+              className="flex items-center gap-4 rounded-2xl p-4"
+              style={{ background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.2)", boxShadow: "0 0 20px rgba(251,146,60,0.08)" }}
+            >
+              <div
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "rgba(251,146,60,0.15)", boxShadow: "0 0 12px rgba(251,146,60,0.4)" }}
+              >
+                <Flame className="size-5 text-orange-400" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Streak cible</div>
+                <div className="text-xl font-bold text-orange-300">{goals.streak} <span className="text-xs font-normal text-muted-foreground">jours</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <section
@@ -383,5 +430,14 @@ export function ProfilePage() {
         </div>
       </div>
     </div>
+
+    {showGoalModal && (
+      <GoalModal
+        initialGoals={goals}
+        onSave={saveGoals}
+        onClose={() => setShowGoalModal(false)}
+      />
+    )}
+    </>
   );
 }

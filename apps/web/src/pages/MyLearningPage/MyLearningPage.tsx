@@ -1,3 +1,4 @@
+import React from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -13,6 +14,8 @@ import { HudFrame } from "@/shared/ui/HudFrame";
 import { Progress } from "@/shared/ui/Progress";
 import { cn } from "@/shared/cn";
 import { useNavigate } from "react-router-dom";
+import { GoalModal } from "./GoalModal";
+import { useGoals } from "@/hooks/useGoals";
 
 type ContinueItem = {
   id: string;
@@ -42,7 +45,9 @@ type ActivityItem = {
 };
 
 export function MyLearningPage() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { goals, saveGoals } = useGoals();
+  const [showGoalModal, setShowGoalModal] = React.useState(false);
   const continueLearning: ContinueItem[] = [
     {
       id: "1",
@@ -157,6 +162,7 @@ export function MyLearningPage() {
   const weeklyPct = Math.min(100, Math.round((stats.learnedThisWeek / stats.weeklyGoal) * 100));
 
   return (
+    <>
     <div className="relative p-8">
       <div className="pointer-events-none absolute inset-0 opacity-40 space-grid" />
 
@@ -196,7 +202,7 @@ export function MyLearningPage() {
                   <BookOpen className="h-4 w-4" />
                   Browse Catalog
                 </Button>
-                <Button className="rounded-xl">
+                <Button className="rounded-xl" onClick={() => setShowGoalModal(true)}>
                   <Target className="h-4 w-4" />
                   Set Goal
                 </Button>
@@ -448,5 +454,14 @@ export function MyLearningPage() {
         </div>
       </div>
     </div>
+
+      {showGoalModal && (
+        <GoalModal
+          initialGoals={goals}
+          onSave={saveGoals}
+          onClose={() => setShowGoalModal(false)}
+        />
+      )}
+    </>
   );
 }
