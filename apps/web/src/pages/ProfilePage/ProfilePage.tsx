@@ -58,7 +58,7 @@ export function ProfilePage() {
   const inProgressCount = progressRecords.filter((p) => p.status === "IN_PROGRESS").length;
 
   const stats = [
-    { label: "Cours disponibles", value: String(courses.length), icon: Award, accent: "purple" as const },
+    { label: "Capsules disponibles", value: String(courses.length), icon: Award, accent: "purple" as const },
     { label: "Chapitres terminés", value: String(completedCount), icon: Target, accent: "purple" as const },
     { label: "En cours", value: String(inProgressCount), icon: Zap, accent: "blue" as const },
   ];

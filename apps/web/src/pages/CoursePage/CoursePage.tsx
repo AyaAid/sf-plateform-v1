@@ -1,15 +1,20 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, BookOpen, Clock, GraduationCap, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Clock, GraduationCap, Sparkles } from "lucide-react";
 import { HudFrame } from "@/shared/ui/HudFrame";
 import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/cn";
 import { useCourse } from "@/hooks/useCourse";
+import { useEnroll, useEnrollments } from "@/hooks/useEnrollments";
 
 export function CoursePage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
 
   const { data: course, isLoading, isError } = useCourse(courseId);
+  const { data: enrollments } = useEnrollments();
+  const enroll = useEnroll(courseId ?? "");
+
+  const isEnrolled = enrollments?.some((e) => e.courseId === course?.id) ?? false;
 
   if (isLoading) {
     return (
@@ -72,12 +77,27 @@ export function CoursePage() {
               </div>
 
               <div className="flex gap-2">
+                {isEnrolled ? (
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400">
+                    <Check className="h-4 w-4" />
+                    Inscrit
+                  </span>
+                ) : (
+                  <Button
+                    className="rounded-xl"
+                    onClick={() => enroll.mutate()}
+                    disabled={enroll.isPending}
+                  >
+                    {enroll.isPending ? "Inscription..." : "S'inscrire"}
+                  </Button>
+                )}
                 {firstAvailableChapter && (
                   <Button
+                    variant="secondary"
                     className="rounded-xl"
                     onClick={() => navigate(`/app/courses/${course.id}/chapters/${firstAvailableChapter.id}`)}
                   >
-                    Commencer
+                    {isEnrolled ? "Continuer" : "Aperçu"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 )}

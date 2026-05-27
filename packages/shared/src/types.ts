@@ -155,6 +155,31 @@ export type ChapterWithBlocks = {
   blocks: ContentBlock[];
 };
 
+// ── Enrollment ────────────────────────────────────────────────────────────────
+
+export type EnrollmentSummary = {
+  courseId: string;
+  courseSlug: string;
+  title: string;
+  level: string | null;
+  description: string | null;
+  isPremium: boolean;
+  enrolledAt: string;
+  progress: number;
+  totalChapters: number;
+  completedChapters: number;
+  lastActivityAt: string | null;
+};
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+export type UserStats = {
+  xp: number;
+  level: number;
+  streak: number;
+  weeklyMinutes: number;
+};
+
 // ── Progress ──────────────────────────────────────────────────────────────────
 
 export type ProgressStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";

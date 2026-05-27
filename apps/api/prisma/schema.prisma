@@ -13,6 +13,7 @@ model User {
   passwordHash String?
   createdAt    DateTime @default(now())
   progress     Progress[]
+  enrollments  Enrollment[]
 }
 
 model Course {
@@ -24,6 +25,19 @@ model Course {
   isPremium   Boolean  @default(false)
   createdAt   DateTime @default(now())
   capsules    Capsule[]
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
 }
 
 model Capsule {

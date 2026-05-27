@@ -36,15 +36,14 @@ export function DashboardPage() {
     return { ...course, progress };
   });
 
-  // On n'affiche que les cours ayant au moins 1 chapitre en progression
   const inProgress = coursesWithProgress.filter((c) => c.progress > 0 && c.progress < 100);
 
   const stats = [
     {
-      label: "Cours disponibles",
+      label: "Capsules disponibles",
       value: String(courses.length),
       icon: Award,
-      iconBg: "rgba(139,92,246,0.2)",
+      iconBg: "rgba(80, 79, 82, 0.2)",
       iconGlow: "0 0 14px rgba(139,92,246,0.5), 0 0 28px rgba(139,92,246,0.2)",
       iconColor: "text-violet-400",
     },
