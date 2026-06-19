@@ -50,7 +50,6 @@ export function LoginPage() {
             />
             <h1 className="text-2xl font-semibold tracking-tight text-white">Stars Factory</h1>
           </div>
-          <p className="text-sm text-white/50">Connecte-toi pour continuer</p>
         </div>
 
         <HudFrame hover={false} className="p-7">
