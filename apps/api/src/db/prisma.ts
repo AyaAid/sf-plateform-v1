@@ -8,9 +8,11 @@ if (!url) {
   throw new Error("DATABASE_URL is missing. Check apps/api/.env");
 }
 
+const isRemote = !url.includes("localhost") && !url.includes("127.0.0.1");
+
 const pool = new Pool({
   connectionString: url,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+  ssl: isRemote ? { rejectUnauthorized: false } : undefined,
 });
 
 const adapter = new PrismaPg(pool);
