@@ -30,6 +30,16 @@ app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "api" }));
 
+app.get("/debug-db", async (_req, res) => {
+  try {
+    const { prisma } = await import("./db/prisma");
+    const count = await prisma.course.count();
+    res.json({ ok: true, courses: count, dbUrl: process.env.DATABASE_URL?.slice(0, 40) + "..." });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message, stack: (err as Error).stack?.slice(0, 500) });
+  }
+});
+
 app.use("/auth", authRouter);
 app.use("/courses", coursesRouter);
 app.use("/chapters", chaptersRouter);
