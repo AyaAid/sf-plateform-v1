@@ -55,22 +55,6 @@ export function AdminUploadPage() {
     }
   }
 
-  async function revalidate() {
-    if (!file || !moduleId) return;
-    setValidating(true);
-    setResult(null);
-    try {
-      const res = await adminApi.validateChapter(moduleId, file);
-      setResult(res);
-      setStep(res.valid ? "valid" : "error");
-    } catch (e: unknown) {
-      setResult({ valid: false, errors: [{ line: null, message: (e as Error).message }] });
-      setStep("error");
-    } finally {
-      setValidating(false);
-    }
-  }
-
   async function handleUpload(publish: boolean) {
     if (!file || !moduleId || step !== "valid") return;
     setUploading(true);
