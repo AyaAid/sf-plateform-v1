@@ -11,6 +11,7 @@
     "dev": "npm run dev -w apps/api & npm run dev -w apps/web",
     "db:up": "docker-compose up -d",
     "db:down": "docker-compose down",
-    "db:logs": "docker-compose logs -f db"
+    "db:logs": "docker-compose logs -f db",
+    "postinstall": "npm run build -w packages/shared"
   }
 }
