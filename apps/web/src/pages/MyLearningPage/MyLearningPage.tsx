@@ -36,15 +36,15 @@ export function MyLearningPage() {
   const { data: enrollments = [], isLoading: loadingEnrollments } = useEnrollments();
   const { data: stats, isLoading: loadingStats } = useStats();
 
-  const inProgress = enrollments.filter((e) => e.progress > 0 && e.progress < 100);
+  const inProgress = enrollments.filter((e) => e.startedChapters > 0 && e.progress < 100);
   const allEnrolled = enrollments;
 
   const xp = stats?.xp ?? 0;
   const level = stats?.level ?? 1;
   const streak = stats?.streak ?? 0;
-  const weeklyMinutes = stats?.weeklyMinutes ?? 0;
-  const weeklyGoal = goals.daily * 7;
-  const weeklyPct = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyMinutes / weeklyGoal) * 100)) : 0;
+  const weeklyCapsules = stats?.weeklyCapsules ?? 0;
+  const weeklyPct = goals.weekly > 0 ? Math.min(100, Math.round((weeklyCapsules / goals.weekly) * 100)) : 0;
+  const streakPct = goals.streak > 0 ? Math.min(100, Math.round((streak / goals.streak) * 100)) : 0;
 
   return (
     <>
@@ -59,21 +59,21 @@ export function MyLearningPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-foreground">My Learning</h1>
+                    <h1 className="text-foreground">Mon apprentissage</h1>
                     <Sparkles className="h-5 w-5 text-secondary animate-pulse" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Track your progress, continue your courses, and stay consistent.
+                    Suis ta progression, reprends tes cours et reste régulier.
                   </p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Zap className="h-4 w-4 text-secondary" />
-                      {loadingStats ? "—" : `${streak} Day Streak`}
+                      {loadingStats ? "..." : `${streak} j de série`}
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <Target className="h-4 w-4 text-primary" />
-                      {loadingStats ? "—" : `Level ${level}`}
+                      {loadingStats ? "..." : `Niveau ${level}`}
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <GraduationCap className="h-4 w-4 text-secondary" />
@@ -85,11 +85,11 @@ export function MyLearningPage() {
                 <div className="flex gap-2">
                   <Button variant="secondary" className="rounded-xl" onClick={() => navigate("/app/catalog")}>
                     <BookOpen className="h-4 w-4" />
-                    Browse Catalog
+                    Parcourir le catalogue
                   </Button>
                   <Button className="rounded-xl" onClick={() => setShowGoalModal(true)}>
                     <Target className="h-4 w-4" />
-                    Set Goal
+                    Définir un objectif
                   </Button>
                 </div>
               </div>
@@ -99,7 +99,7 @@ export function MyLearningPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             <section className="lg:col-span-2 space-y-4">
               <div className="flex items-center gap-3">
-                <h2 className="text-foreground">Continue Learning</h2>
+                <h2 className="text-foreground">Continuer l'apprentissage</h2>
                 <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
               </div>
 
@@ -149,7 +149,7 @@ export function MyLearningPage() {
 
                       <div className="mt-4 space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Progress</span>
+                          <span className="text-muted-foreground">Progression</span>
                           <span className="text-foreground">{e.progress}%</span>
                         </div>
                         <Progress value={e.progress} />
@@ -170,17 +170,17 @@ export function MyLearningPage() {
 
             <section className="space-y-4">
               <div className="flex items-center gap-3">
-                <h2 className="text-foreground">This Week</h2>
+                <h2 className="text-foreground">Cette semaine</h2>
                 <div className="h-px flex-1 bg-gradient-to-r from-secondary/30 to-transparent" />
               </div>
 
               <HudFrame className="p-6" accent="blue">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm text-muted-foreground">Weekly learning goal</div>
+                    <div className="text-sm text-muted-foreground">Objectif hebdomadaire</div>
                     <div className="mt-2 text-3xl text-foreground">
-                      {weeklyMinutes}{" "}
-                      <span className="text-muted-foreground text-base">/ {weeklyGoal} min</span>
+                      {weeklyCapsules}{" "}
+                      <span className="text-muted-foreground text-base">/ {goals.weekly} capsules</span>
                     </div>
                   </div>
 
@@ -199,16 +199,20 @@ export function MyLearningPage() {
 
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Progress</span>
+                    <span>Progression</span>
                     <span>{weeklyPct}%</span>
                   </div>
                   <Progress value={weeklyPct} />
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="text-xs text-muted-foreground">Streak</div>
-                    <div className="mt-1 text-lg text-foreground">{streak} days</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">Streak</div>
+                      <div className="text-xs text-orange-400">{streakPct}%</div>
+                    </div>
+                    <div className="text-lg text-foreground">{streak} <span className="text-xs text-muted-foreground">/ {goals.streak} j</span></div>
+                    <Progress value={streakPct} />
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="text-xs text-muted-foreground">Level</div>
@@ -221,7 +225,7 @@ export function MyLearningPage() {
 
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-foreground">Enrolled Courses</h2>
+              <h2 className="text-foreground">Cours inscrits</h2>
               <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
             </div>
 
@@ -278,7 +282,7 @@ export function MyLearningPage() {
 
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Progress</span>
+                        <span className="text-muted-foreground">Progression</span>
                         <span className="text-foreground">{e.progress}%</span>
                       </div>
                       <Progress value={e.progress} />

@@ -2,15 +2,21 @@ import React from "react";
 import { CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import type { QuizBlock as QuizBlockType } from "@stars-factory/shared";
+import { AlreadyAnsweredBadge } from "./AlreadyAnsweredBadge";
 
 type Props = {
   block: QuizBlockType;
   onAnswered: () => void;
+  alreadyAnswered?: boolean;
 };
 
-export function QuizBlock({ block, onAnswered }: Props) {
+export function QuizBlock({ block, onAnswered, alreadyAnswered }: Props) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [submitted, setSubmitted] = React.useState(false);
+
+  if (alreadyAnswered && !submitted) {
+    return <AlreadyAnsweredBadge label="Quiz" />;
+  }
 
   const isCorrect = selected === block.correct_answer;
 

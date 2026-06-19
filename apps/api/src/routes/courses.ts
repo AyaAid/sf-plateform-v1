@@ -3,10 +3,23 @@ import { prisma } from "../db/prisma";
 
 export const coursesRouter = Router();
 
-// GET /courses — list all courses
+// GET /courses — list courses that have at least one published chapter
 coursesRouter.get("/", async (_req, res) => {
   const courses = await prisma.course.findMany({
     orderBy: { createdAt: "asc" },
+    where: {
+      capsules: {
+        some: {
+          modules: {
+            some: {
+              chapters: {
+                some: { isPublished: true },
+              },
+            },
+          },
+        },
+      },
+    },
     select: {
       id: true,
       slug: true,
@@ -35,6 +48,7 @@ coursesRouter.get("/:id", async (req, res) => {
             orderBy: { sortOrder: "asc" },
             include: {
               chapters: {
+                where: { isPublished: true },
                 orderBy: { sortOrder: "asc" },
                 select: {
                   id: true,

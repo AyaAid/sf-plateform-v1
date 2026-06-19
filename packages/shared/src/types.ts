@@ -5,6 +5,8 @@ export type AuthUser = {
   email: string;
   name: string | null;
   createdAt: string;
+  role: "USER" | "ADMIN";
+  avatarUrl?: string | null;
 };
 
 export type AuthResponse = {
@@ -168,7 +170,16 @@ export type EnrollmentSummary = {
   progress: number;
   totalChapters: number;
   completedChapters: number;
+  startedChapters: number;
   lastActivityAt: string | null;
+};
+
+// ── Goals ─────────────────────────────────────────────────────────────────────
+
+export type UserGoals = {
+  daily: number;
+  weekly: number;
+  streak: number;
 };
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -178,11 +189,31 @@ export type UserStats = {
   level: number;
   streak: number;
   weeklyMinutes: number;
+  dailyMinutes: number;
+  weeklyCapsules: number;
+};
+
+// ── Block Progress ────────────────────────────────────────────────────────────
+
+export type BlockProgressRecord = {
+  blockId: string;
+  answeredAt: string;
 };
 
 // ── Progress ──────────────────────────────────────────────────────────────────
 
 export type ProgressStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+
+export type ActivityRecord = {
+  chapterId: string;
+  chapterTitle: string;
+  courseId: string;
+  courseSlug: string;
+  courseTitle: string;
+  status: ProgressStatus;
+  score: number | null;
+  updatedAt: string;
+};
 
 export type ProgressRecord = {
   chapterId: string;

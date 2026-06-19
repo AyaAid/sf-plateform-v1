@@ -33,6 +33,11 @@ export function useAuth() {
     persist(data);
   }
 
+  function updateUser(updated: AuthUser) {
+    localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    setUser(updated);
+  }
+
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -47,5 +52,6 @@ export function useAuth() {
     login,
     register,
     logout,
+    updateUser,
   };
 }

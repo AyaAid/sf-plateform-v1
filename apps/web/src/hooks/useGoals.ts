@@ -1,27 +1,22 @@
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/apiClient";
+import type { UserGoals } from "@stars-factory/shared";
 
-export type Goals = {
-  daily: number;   // minutes / jour
-  weekly: number;  // capsules / semaine
-  streak: number;  // jours consécutifs
-};
+export type Goals = UserGoals;
 
 const DEFAULT_GOALS: Goals = { daily: 30, weekly: 5, streak: 14 };
-const STORAGE_KEY = "sf_goals";
 
 export function useGoals() {
-  const [goals, setGoals] = useState<Goals>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? (JSON.parse(stored) as Goals) : DEFAULT_GOALS;
-    } catch {
-      return DEFAULT_GOALS;
-    }
+  const queryClient = useQueryClient();
+
+  const { data: goals = DEFAULT_GOALS } = useQuery({
+    queryKey: ["goals"],
+    queryFn: () => apiClient.get<Goals>("/goals"),
   });
 
-  function saveGoals(newGoals: Goals) {
-    setGoals(newGoals);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newGoals));
+  async function saveGoals(newGoals: Goals) {
+    await apiClient.put("/goals", newGoals);
+    queryClient.setQueryData(["goals"], newGoals);
   }
 
   return { goals, saveGoals };

@@ -9,20 +9,20 @@ export function useEnrollments() {
   });
 }
 
-export function useEnroll(courseId: string) {
+export function useEnroll() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.post(`/enrollments/${courseId}`, {}),
+    mutationFn: (courseId: string) => apiClient.post(`/enrollments/${courseId}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["enrollments"] });
     },
   });
 }
 
-export function useUnenroll(courseId: string) {
+export function useUnenroll() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.delete(`/enrollments/${courseId}`),
+    mutationFn: (courseId: string) => apiClient.delete(`/enrollments/${courseId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["enrollments"] });
     },

@@ -23,13 +23,13 @@ export function NotFoundPage() {
 
         <div className="flex flex-wrap gap-3">
           <Button>
-            <Link to="/">Go Home</Link>
+            <Link to="/">Accueil</Link>
           </Button>
           <Button variant="secondary">
-            <Link to="/app">Go Dashboard</Link>
+            <Link to="/app">Tableau de bord</Link>
           </Button>
           <Button variant="ghost">
-            <Link to="/app/courses">Course Catalog</Link>
+            <Link to="/app/courses">Catalogue de cours</Link>
           </Button>
         </div>
       </div>

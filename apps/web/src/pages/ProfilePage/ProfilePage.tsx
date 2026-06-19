@@ -6,7 +6,6 @@ import {
   Calendar,
   Sparkles,
   Zap,
-  Target,
   Award,
   Shield,
   LogOut,
@@ -17,11 +16,14 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/Button";
+import { Progress } from "@/shared/ui/Progress";
 import { useAuthContext } from "@/context/AuthContext";
-import { useCourses } from "@/hooks/useCourses";
 import { useProgress } from "@/hooks/useProgress";
 import { useGoals } from "@/hooks/useGoals";
+import { useStats } from "@/hooks/useStats";
+import { useActivity } from "@/hooks/useActivity";
 import { GoalModal } from "@/pages/MyLearningPage/GoalModal";
+import { ActivityModal } from "./ActivityModal";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -41,26 +43,57 @@ type BadgeItem = {
 
 type ActivityItem = {
   id: string;
+  chapterId: string;
+  courseId: string;
   title: string;
   meta: string;
   tag: string;
 };
 
 export function ProfilePage() {
-  const { user: authUser, logout } = useAuthContext();
+  const { user: authUser, logout, updateUser } = useAuthContext();
   const navigate = useNavigate();
-  const { data: courses = [] } = useCourses();
   const { data: progressRecords = [] } = useProgress();
   const { goals, saveGoals } = useGoals();
+  const { data: userStats } = useStats();
+  const { data: activityRecords = [] } = useActivity(10);
+
+  const dailyPct = Math.min(100, Math.round(((userStats?.dailyMinutes ?? 0) / goals.daily) * 100));
+  const weeklyCapsPct = Math.min(100, Math.round(((userStats?.weeklyCapsules ?? 0) / goals.weekly) * 100));
+  const streakPct = Math.min(100, Math.round(((userStats?.streak ?? 0) / goals.streak) * 100));
   const [showGoalModal, setShowGoalModal] = React.useState(false);
+  const [showActivityModal, setShowActivityModal] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/users/avatar`, {
+        method: "PATCH",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const updated = await res.json();
+      updateUser(updated);
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
 
   const completedCount = progressRecords.filter((p) => p.status === "COMPLETED").length;
-  const inProgressCount = progressRecords.filter((p) => p.status === "IN_PROGRESS").length;
 
   const stats = [
-    { label: "Capsules disponibles", value: String(courses.length), icon: Award, accent: "purple" as const },
-    { label: "Chapitres terminés", value: String(completedCount), icon: Target, accent: "purple" as const },
-    { label: "En cours", value: String(inProgressCount), icon: Zap, accent: "blue" as const },
+    { label: "Points XP", value: (userStats?.xp ?? 0).toLocaleString("fr-FR"), icon: Zap, accent: "purple" as const },
+    { label: "Niveau", value: String(userStats?.level ?? 1), icon: Award, accent: "blue" as const },
+    { label: "Jours de série", value: String(userStats?.streak ?? 0), icon: Flame, accent: "orange" as const },
   ];
 
   function handleLogout() {
@@ -71,47 +104,35 @@ export function ProfilePage() {
   const badges: BadgeItem[] = [
     {
       id: "b1",
-      title: "Orbit Starter",
-      desc: "Completed your first course",
+      title: "Premier décollage",
+      desc: "Tu as terminé ton premier cours",
       icon: Sparkles,
       glow: "purple",
     },
     {
       id: "b2",
-      title: "Consistency",
-      desc: "10+ day streak",
+      title: "Régularité",
+      desc: "10 jours d'affilée ou plus",
       icon: Zap,
       glow: "blue",
     },
     {
       id: "b3",
-      title: "Mission Ready",
-      desc: "Level 10 reached",
+      title: "Prêt pour la mission",
+      desc: "Niveau 10 atteint",
       icon: Shield,
       glow: "pink",
     },
   ];
 
-  const recentActivity: ActivityItem[] = [
-    {
-      id: "a1",
-      title: "Finished lesson: Understanding Polyhedrons",
-      meta: "3D Geometry Fundamentals • 12 min",
-      tag: "Completed",
-    },
-    {
-      id: "a2",
-      title: "Started module: Mental Rotation Exercises",
-      meta: "Spatial Reasoning & Problem Solving • 20 min",
-      tag: "In progress",
-    },
-    {
-      id: "a3",
-      title: "Unlocked badge: Consistency",
-      meta: "Streak milestone • +250 XP",
-      tag: "Unlocked",
-    },
-  ];
+  const recentActivity: ActivityItem[] = activityRecords.map((r) => ({
+    id: r.chapterId,
+    chapterId: r.chapterId,
+    courseId: r.courseId,
+    title: r.chapterTitle,
+    meta: `${r.courseTitle} • ${new Date(r.updatedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`,
+    tag: r.status === "COMPLETED" ? "Terminé" : "En cours",
+  }));
 
 
   return (
@@ -135,22 +156,36 @@ export function ProfilePage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-4">
                 <div className="relative">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
                   <div
-                    className="h-16 w-16 rounded-2xl border"
+                    className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border text-sm font-semibold text-white"
                     style={{
-                      background: "rgba(108, 92, 231, 0.12)",
+                      background: authUser?.avatarUrl ? "transparent" : "rgba(108, 92, 231, 0.12)",
                       borderColor: "rgba(108, 92, 231, 0.25)",
                       boxShadow: "0 0 10px rgba(108, 92, 231, 0.35), 0 0 22px rgba(108, 92, 231, 0.18)",
-                      backdropFilter: "blur(8px)",
                     }}
-                  />
+                  >
+                    {authUser?.avatarUrl ? (
+                      <img src={authUser.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <span>{authUser?.name?.charAt(0).toUpperCase() ?? "?"}</span>
+                    )}
+                  </div>
                   <button
-                    className="absolute -bottom-2 -right-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-black/20 backdrop-blur-md transition hover:bg-black/30"
+                    className="absolute -bottom-2 -right-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-black/20 backdrop-blur-md transition hover:bg-black/30 disabled:opacity-50"
                     style={{ borderColor: "rgba(76, 201, 240, 0.25)" }}
                     type="button"
-                    aria-label="Change profile picture"
+                    disabled={uploadingAvatar}
+                    aria-label="Changer la photo de profil"
+                    onClick={() => avatarInputRef.current?.click()}
                   >
-                    <Camera className="h-4 w-4 text-secondary" />
+                    <Camera className={cx("h-4 w-4 text-secondary", uploadingAvatar && "animate-pulse")} />
                   </button>
                 </div>
 
@@ -192,7 +227,11 @@ export function ProfilePage() {
         <div className="grid gap-6 md:grid-cols-3">
           {stats.map((s) => {
             const Icon = s.icon;
-            const isBlue = s.accent === "blue";
+            const accentStyles = {
+              purple: { bg: "bg-primary/20", glow: "0 0 10px rgba(108,92,231,0.35), 0 0 22px rgba(108,92,231,0.18)", iconCls: "text-primary" },
+              blue:   { bg: "bg-secondary/20", glow: "0 0 10px rgba(76,201,240,0.35), 0 0 22px rgba(76,201,240,0.18)", iconCls: "text-secondary" },
+              orange: { bg: "bg-orange-500/20", glow: "0 0 10px rgba(251,146,60,0.35), 0 0 22px rgba(251,146,60,0.18)", iconCls: "text-orange-400" },
+            }[s.accent];
             return (
               <div
                 key={s.label}
@@ -211,19 +250,14 @@ export function ProfilePage() {
                     <div className="mt-2 text-4xl text-foreground">{s.value}</div>
                   </div>
                   <div
-                    className={cx(
-                      "rounded-xl p-3",
-                      isBlue ? "bg-secondary/20" : "bg-primary/20"
-                    )}
+                    className={cx("rounded-xl p-3", accentStyles.bg)}
                     style={{
                       border: "1px solid rgba(255,255,255,0.06)",
-                      boxShadow: isBlue
-                        ? "0 0 10px rgba(76,201,240,0.35), 0 0 22px rgba(76,201,240,0.18)"
-                        : "0 0 10px rgba(108,92,231,0.35), 0 0 22px rgba(108,92,231,0.18)",
+                      boxShadow: accentStyles.glow,
                       backdropFilter: "blur(10px)",
                     }}
                   >
-                    <Icon className={cx("h-6 w-6", isBlue ? "text-secondary" : "text-primary")} />
+                    <Icon className={cx("h-6 w-6", accentStyles.iconCls)} />
                   </div>
                 </div>
               </div>
@@ -259,53 +293,71 @@ export function ProfilePage() {
           <div className="grid gap-3 sm:grid-cols-3">
             {/* Daily */}
             <div
-              className="flex items-center gap-4 rounded-2xl p-4"
+              className="flex flex-col gap-3 rounded-2xl p-4"
               style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", boxShadow: "0 0 20px rgba(139,92,246,0.08)" }}
             >
-              <div
-                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: "rgba(139,92,246,0.15)", boxShadow: "0 0 12px rgba(139,92,246,0.4)" }}
-              >
-                <Clock className="size-5 text-violet-400" />
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(139,92,246,0.15)", boxShadow: "0 0 12px rgba(139,92,246,0.4)" }}
+                >
+                  <Clock className="size-5 text-violet-400" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Quotidien</div>
+                  <div className="text-xl font-bold text-violet-300">
+                    {userStats?.dailyMinutes ?? 0} <span className="text-xs font-normal text-muted-foreground">/ {goals.daily} min</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Quotidien</div>
-                <div className="text-xl font-bold text-violet-300">{goals.daily} <span className="text-xs font-normal text-muted-foreground">min</span></div>
-              </div>
+              <Progress value={dailyPct} />
+              <div className="text-right text-xs text-violet-400">{dailyPct}%</div>
             </div>
 
             {/* Weekly */}
             <div
-              className="flex items-center gap-4 rounded-2xl p-4"
+              className="flex flex-col gap-3 rounded-2xl p-4"
               style={{ background: "rgba(34,211,238,0.08)", border: "1px solid rgba(34,211,238,0.2)", boxShadow: "0 0 20px rgba(34,211,238,0.08)" }}
             >
-              <div
-                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: "rgba(34,211,238,0.15)", boxShadow: "0 0 12px rgba(34,211,238,0.4)" }}
-              >
-                <Target className="size-5 text-cyan-400" />
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(34,211,238,0.15)", boxShadow: "0 0 12px rgba(34,211,238,0.4)" }}
+                >
+                  <Award className="size-5 text-cyan-400" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Par semaine</div>
+                  <div className="text-xl font-bold text-cyan-300">
+                    {userStats?.weeklyCapsules ?? 0} <span className="text-xs font-normal text-muted-foreground">/ {goals.weekly} capsules</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Par semaine</div>
-                <div className="text-xl font-bold text-cyan-300">{goals.weekly} <span className="text-xs font-normal text-muted-foreground">capsules</span></div>
-              </div>
+              <Progress value={weeklyCapsPct} />
+              <div className="text-right text-xs text-cyan-400">{weeklyCapsPct}%</div>
             </div>
 
             {/* Streak */}
             <div
-              className="flex items-center gap-4 rounded-2xl p-4"
+              className="flex flex-col gap-3 rounded-2xl p-4"
               style={{ background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.2)", boxShadow: "0 0 20px rgba(251,146,60,0.08)" }}
             >
-              <div
-                className="flex size-10 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: "rgba(251,146,60,0.15)", boxShadow: "0 0 12px rgba(251,146,60,0.4)" }}
-              >
-                <Flame className="size-5 text-orange-400" />
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(251,146,60,0.15)", boxShadow: "0 0 12px rgba(251,146,60,0.4)" }}
+                >
+                  <Flame className="size-5 text-orange-400" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Streak</div>
+                  <div className="text-xl font-bold text-orange-300">
+                    {userStats?.streak ?? 0} <span className="text-xs font-normal text-muted-foreground">/ {goals.streak} jours</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Streak cible</div>
-                <div className="text-xl font-bold text-orange-300">{goals.streak} <span className="text-xs font-normal text-muted-foreground">jours</span></div>
-              </div>
+              <Progress value={streakPct} />
+              <div className="text-right text-xs text-orange-400">{streakPct}%</div>
             </div>
           </div>
         </section>
@@ -364,7 +416,7 @@ export function ProfilePage() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="truncate text-sm font-medium text-foreground">{b.title}</div>
                         <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] text-foreground">
-                          Earned
+                          Obtenu
                         </span>
                       </div>
                       <div className="mt-1 text-xs leading-5 text-muted-foreground">{b.desc}</div>
@@ -385,7 +437,7 @@ export function ProfilePage() {
             }}
           >
             <div className="mb-4 flex items-center gap-3">
-              <h2 className="text-foreground">Recent activity</h2>
+              <h2 className="text-foreground">Activité récente</h2>
               <div className="h-[1px] flex-1 bg-gradient-to-r from-secondary/30 to-transparent" />
             </div>
 
@@ -406,13 +458,17 @@ export function ProfilePage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="rounded-full border border-secondary/20 bg-secondary/10 px-3 py-1 text-[11px] text-foreground">
+                    <span className={cx(
+                      "rounded-full border px-3 py-1 text-[11px] text-foreground",
+                      a.tag === "Terminé" ? "border-emerald-500/20 bg-emerald-500/10" : "border-secondary/20 bg-secondary/10"
+                    )}>
                       {a.tag}
                     </span>
                     <button
                       type="button"
+                      onClick={() => navigate(`/app/courses/${a.courseId}/chapters/${a.chapterId}`)}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] text-foreground transition hover:bg-white/[0.05]"
-                      aria-label="Open"
+                      aria-label="Ouvrir"
                     >
                       <ArrowRight className="h-4 w-4 opacity-70 transition group-hover:opacity-100" />
                     </button>
@@ -422,8 +478,8 @@ export function ProfilePage() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button variant="secondary" className="rounded-xl" type="button">
-                View all activity
+              <Button variant="secondary" className="rounded-xl" type="button" onClick={() => setShowActivityModal(true)}>
+                Voir toute l'activité
               </Button>
             </div>
           </section>
@@ -437,6 +493,10 @@ export function ProfilePage() {
         onSave={saveGoals}
         onClose={() => setShowGoalModal(false)}
       />
+    )}
+
+    {showActivityModal && (
+      <ActivityModal onClose={() => setShowActivityModal(false)} onNavigate={navigate} />
     )}
     </>
   );

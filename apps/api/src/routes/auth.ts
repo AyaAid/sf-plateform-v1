@@ -6,10 +6,10 @@ import { prisma } from "../db/prisma";
 
 export const authRouter = Router();
 
-function signToken(userId: string): string {
+function signToken(userId: string, role: string): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET is not set");
-  return jwt.sign({ userId }, secret, { expiresIn: "7d" });
+  return jwt.sign({ userId, role }, secret, { expiresIn: "7d" });
 }
 
 // POST /auth/register
@@ -29,10 +29,10 @@ authRouter.post("/register", async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: { email, name, passwordHash },
-    select: { id: true, email: true, name: true, createdAt: true },
+    select: { id: true, email: true, name: true, createdAt: true, role: true, avatarUrl: true },
   });
 
-  return res.status(201).json({ token: signToken(user.id), user });
+  return res.status(201).json({ token: signToken(user.id, user.role), user });
 });
 
 // POST /auth/login
@@ -46,7 +46,7 @@ authRouter.post("/login", async (req, res) => {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, name: true, createdAt: true, passwordHash: true },
+    select: { id: true, email: true, name: true, createdAt: true, role: true, avatarUrl: true, passwordHash: true },
   });
   if (!user?.passwordHash) {
     return res.status(401).json({ error: "Invalid credentials" });
@@ -58,7 +58,7 @@ authRouter.post("/login", async (req, res) => {
   }
 
   return res.json({
-    token: signToken(user.id),
-    user: { id: user.id, email: user.email, name: user.name, createdAt: user.createdAt },
+    token: signToken(user.id, user.role),
+    user: { id: user.id, email: user.email, name: user.name, createdAt: user.createdAt, role: user.role, avatarUrl: user.avatarUrl },
   });
 });

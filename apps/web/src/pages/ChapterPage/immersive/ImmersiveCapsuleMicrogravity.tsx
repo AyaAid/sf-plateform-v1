@@ -1,1026 +1,585 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  Activity,
-  Droplets,
-  Heart,
-  Shield,
-  Wind,
-  Lock,
-  CheckCircle2,
-  Trophy,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-
 import { SpaceScene } from "./SpaceScene";
-import { Button } from "@/shared/ui/Button";
+import type { Stage, Choice } from "./SpaceScene";
 
-type Screen = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-type Choice = "exercise" | "nothing" | "drink" | "belt";
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
+const SAS_CORRECT: Choice = "medical";
+const FLUID_CORRECT: Choice = "exercise";
 
-function useTelemetry() {
-  const [altKm, setAltKm] = React.useState(408.0);
-  const [velKms, setVelKms] = React.useState(7.66);
-  const [gravG, setGravG] = React.useState(0.0);
+const CHOICE_META: Record<Choice, { label: string; sub: string; color: string; border: string }> = {
+  exercise: { label: "ARED", sub: "Résistance 45 min", color: "#7c6cf0", border: "rgba(124,108,240,0.45)" },
+  medical:  { label: "KIT MÉDICAL", sub: "Traitement médicamenteux", color: "#00dd77", border: "rgba(0,221,119,0.4)" },
+  comms:    { label: "MISSION CONTROL", sub: "Consultation sol", color: "#4CC9F0", border: "rgba(76,201,240,0.4)" },
+};
 
-  const [hr, setHr] = React.useState(78);
-  const [fluidsL, setFluidsL] = React.useState(0.8);
+const INSPECTION_DATA: Record<Choice, { title: string; subtitle: string; facts: string[]; note: string; noteColor: string }> = {
+  exercise: {
+    title: "ARED — Advanced Resistive Exercise Device",
+    subtitle: "Contre-mesure active principale",
+    facts: [
+      "Génère jusqu'à 272 kg de résistance simulée par système à vide — sans masse réelle",
+      "Cible les muscles posturaux, membres inférieurs et système cardiovasculaire",
+      "Prescrit 6 jours sur 7 sur les missions longues (ISS) — plusieurs heures par semaine",
+      "Sans exercice résistif, la perte osseuse atteint 1 à 2% par mois dans les zones portantes",
+      "Contre-mesure indispensable au déconditionnement musculo-squelettique chronique",
+    ],
+    note: "Indiqué à partir du Jour 4-5, lorsque la phase d'adaptation neurovestibulaire initiale est stabilisée.",
+    noteColor: "#7c6cf0",
+  },
+  medical: {
+    title: "KIT MÉDICAL — Traitement pharmacologique",
+    subtitle: "Antiémétiques · Corticostéroïdes · Analgésiques",
+    facts: [
+      "Antiémétiques (Promethazine, Scopolamine) pour les nausées du Syndrome d'Adaptation Spatiale",
+      "Corticostéroïdes et anti-inflammatoires pour les symptômes aigus de redistribution des fluides",
+      "Tout protocole médicamenteux est validé par le médecin de mission control avant administration",
+      "Traitement symptomatique uniquement — ne corrige pas le déconditionnement structurel",
+      "Complémentaire à l'exercice, jamais substitutif sur le long terme",
+    ],
+    note: "Efficace pour le SAS (Jours 1-3). Insuffisant seul comme contre-mesure au déconditionnement prolongé.",
+    noteColor: "#00dd77",
+  },
+  comms: {
+    title: "COMMS — Mission Control Houston",
+    subtitle: "Support médical · Télémédecine temps réel",
+    facts: [
+      "Lien direct avec les médecins de vol NASA/ESA — disponible 24h/24 en orbite basse",
+      "Délai de transmission : ~240 ms aller-retour — communications en quasi-temps réel",
+      "Accès aux données biométriques de l'équipage et historique médical embarqué",
+      "Indispensable pour les décisions hors protocole ou les urgences complexes",
+      "L'autonomie décisionnelle de l'équipage reste critique — les délais comptent en urgence",
+    ],
+    note: "Ressource précieuse pour le suivi, mais chaque astronaute doit être capable d'appliquer les protocoles de base sans délai.",
+    noteColor: "#4CC9F0",
+  },
+};
 
+// ── Telemetry ─────────────────────────────────────────────────────────────────
+
+function useTelemetry(crisis: boolean) {
+  const [hr, setHr] = React.useState(76);
+  const [o2, setO2] = React.useState(98.4);
   React.useEffect(() => {
-    const id = window.setInterval(() => {
-      setAltKm((v) => clamp(v + (Math.random() - 0.5) * 0.08, 407.7, 408.4));
-      setVelKms((v) => clamp(v + (Math.random() - 0.5) * 0.01, 7.62, 7.71));
-      setGravG((v) => clamp(v + (Math.random() - 0.5) * 0.003, 0.0, 0.02));
-      setHr((v) => Math.round(clamp(v + (Math.random() - 0.5) * 2.0, 70, 96)));
-      setFluidsL((v) => clamp(v + (Math.random() - 0.5) * 0.02, 0.6, 1.6));
-    }, 650);
-
-    return () => window.clearInterval(id);
-  }, []);
-
-  return { altKm, velKms, gravG, hr, fluidsL };
+    const id = setInterval(() => {
+      if (crisis) {
+        setHr(v => Math.min(118, v + Math.random() * 2.8));
+        setO2(v => Math.max(91, v - Math.random() * 0.35));
+      } else {
+        setHr(76 + Math.sin(Date.now() * 0.001) * 3 + (Math.random() - 0.5));
+        setO2(98.4 + Math.sin(Date.now() * 0.0007) * 0.3);
+      }
+    }, 700);
+    return () => clearInterval(id);
+  }, [crisis]);
+  return { hr: Math.round(hr), o2: o2.toFixed(1) };
 }
 
-function Pill({
-  children,
-  tone = "blue",
-}: {
-  children: React.ReactNode;
-  tone?: "blue" | "green" | "yellow";
-}) {
-  const toneClass =
-    tone === "green"
-      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
-      : tone === "yellow"
-      ? "border-amber-400/25 bg-amber-400/10 text-amber-200"
-      : "border-sky-400/25 bg-sky-400/10 text-sky-200";
+// ── Shared UI ─────────────────────────────────────────────────────────────────
 
+function TopBar({ onExit, hr, o2, crisis }: { onExit: () => void; hr: number; o2: string; crisis: boolean }) {
   return (
-    <div
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs tracking-[0.14em] ${toneClass}`}
-      style={{ backdropFilter: "blur(10px)" }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function GlassPanel({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-[22px] border border-white/10 bg-white/[0.03] ${className}`}
-      style={{
-        backdropFilter: "blur(14px)",
-        boxShadow:
-          "0 18px 70px rgba(0,0,0,0.55), inset 0 1px 1px rgba(255,255,255,0.04)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5"
-      style={{ backdropFilter: "blur(10px)" }}
-    >
-      <div className="text-xs tracking-[0.18em] text-white/55">{label.toUpperCase()}</div>
-      <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
-      <div className="mt-3 h-1.5 w-14 rounded-full bg-white/10">
-        <div
-          className="h-1.5 w-9 rounded-full"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.75))",
-            boxShadow: "0 0 14px rgba(108,92,231,0.18)",
-          }}
-        />
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", pointerEvents: "auto" }}>
+      <button onClick={onExit} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(5,10,22,0.6)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.55)", fontSize: 12, cursor: "pointer", letterSpacing: "0.06em" }}>
+        ← QUITTER
+      </button>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 16, padding: "7px 18px", borderRadius: 32, background: "rgba(5,10,22,0.72)", backdropFilter: "blur(12px)", border: `1px solid ${crisis ? "rgba(255,80,20,0.4)" : "rgba(255,255,255,0.1)"}`, fontSize: 11, letterSpacing: "0.1em" }}>
+        <span style={{ color: "rgba(255,255,255,0.35)" }}>HR</span>
+        <span style={{ color: crisis ? "#ff7755" : "white", fontWeight: 700 }}>{hr}<span style={{ fontWeight: 400, opacity: 0.55 }}>bpm</span></span>
+        <span style={{ width: 1, height: 14, background: "rgba(255,255,255,0.12)" }} />
+        <span style={{ color: "rgba(255,255,255,0.35)" }}>SpO₂</span>
+        <span style={{ color: crisis ? "#ff9966" : "white", fontWeight: 700 }}>{o2}<span style={{ fontWeight: 400, opacity: 0.55 }}>%</span></span>
+        <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", background: crisis ? "rgba(255,60,20,0.15)" : "rgba(76,201,240,0.1)", color: crisis ? "#ff7755" : "#4CC9F0", border: `1px solid ${crisis ? "rgba(255,60,20,0.25)" : "rgba(76,201,240,0.18)"}` }}>
+          {crisis ? "ALERTE" : "NOMINAL"}
+        </span>
+      </div>
+      <div style={{ padding: "6px 14px", borderRadius: 10, background: "rgba(5,10,22,0.6)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 10, fontWeight: 700, letterSpacing: "0.22em", color: "rgba(108,92,231,0.7)" }}>
+        IMMERSIF
       </div>
     </div>
   );
 }
 
-function useAnimatedNumber(target: number, speed = 0.14) {
-  const [v, setV] = React.useState(target);
-  React.useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      setV((prev) => prev + (target - prev) * speed);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, speed]);
-  return v;
-}
+// ── Briefing ──────────────────────────────────────────────────────────────────
 
-function ProgressBar({
-  value,
-  onPulse,
-}: {
-  value: number;
-  onPulse?: () => void;
-}) {
-  const v = useAnimatedNumber(value);
-
+function BriefingOverlay({ progress, onEnter }: { progress: number; onEnter: () => void }) {
+  const lines = [
+    { t: 0.0,  size: 11, spacing: "0.22em", color: "rgba(76,201,240,0.8)",  text: "MODULE UNITY · ISS · JOUR 14 · 09:42 UTC" },
+    { t: 0.22, size: 16, spacing: "0.02em", color: "rgba(255,255,255,0.8)", text: "Vous vous réveillez dans le module. Aucun bruit. Aucun poids." },
+    { t: 0.50, size: 15, spacing: "0.02em", color: "rgba(255,255,255,0.7)", text: "14 jours en orbite. Votre corps s'est adapté à la microgravité — mais cette adaptation a un coût physiologique que vous devez maintenant gérer." },
+    { t: 0.76, size: 15, spacing: "0.02em", color: "rgba(255,255,255,0.7)", text: "Alexandre, votre coéquipier, a besoin de vous. Votre maîtrise de la physiologie spatiale va être testée — deux fois, dans des contextes différents." },
+  ];
   return (
-    <button
-      type="button"
-      onClick={onPulse}
-      className="w-full"
-      aria-label="progress"
-      title="Click to boost the scene"
-    >
-      <div className="h-2 w-full rounded-full bg-white/10">
-        <div
-          className="h-2 rounded-full transition-[filter] duration-300 hover:brightness-125"
-          style={{
-            width: `${clamp(v, 0, 100)}%`,
-            background: "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-            boxShadow: "0 0 18px rgba(108,92,231,0.25)",
-          }}
-        />
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+      {lines.map(({ t, size, spacing, color, text }, i) => (
+        <p key={i} style={{ maxWidth: 560, textAlign: "center", margin: "9px 24px", fontSize: size, letterSpacing: spacing, lineHeight: 1.7, color, fontWeight: i === 0 ? 600 : 400, transition: "opacity 0.8s ease, transform 0.8s ease", opacity: progress >= t ? 1 : 0, transform: `translateY(${progress >= t ? 0 : 14}px)` }}>
+          {text}
+        </p>
+      ))}
+      <div style={{ position: "absolute", bottom: 52, transition: "opacity 0.6s", opacity: progress >= 0.94 ? 1 : 0, pointerEvents: progress >= 0.94 ? "auto" : "none" }}>
+        <button onClick={onEnter} style={{ padding: "13px 40px", borderRadius: 14, border: "none", cursor: "pointer", background: "linear-gradient(135deg, rgba(108,92,231,0.9), rgba(76,201,240,0.8))", color: "white", fontWeight: 700, fontSize: 14, letterSpacing: "0.08em", boxShadow: "0 8px 32px rgba(108,92,231,0.4)" }}>
+          ENTRER DANS LE MODULE
+        </button>
       </div>
-    </button>
+      <div style={{ position: "absolute", bottom: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: progress >= 0.94 ? 0 : 0.45, transition: "opacity 0.4s", pointerEvents: "none" }}>
+        <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.3)" }} />
+        <span style={{ fontSize: 10, letterSpacing: "0.18em", color: "rgba(255,255,255,0.4)" }}>SCROLL</span>
+      </div>
+      <div style={{ position: "absolute", left: 0, bottom: 0, height: 2, width: "100%", background: "rgba(255,255,255,0.05)" }}>
+        <div style={{ height: "100%", width: `${progress * 100}%`, background: "linear-gradient(90deg, rgba(108,92,231,0.8), rgba(76,201,240,0.8))", transition: "width 0.15s" }} />
+      </div>
+    </div>
   );
 }
 
-function ChoiceCard({
-  icon,
-  title,
-  subtitle,
-  tag,
-  tagTone,
-  topBorder,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  tag?: string;
-  tagTone?: "blue" | "green" | "yellow";
-  topBorder: "blue" | "purple" | "red" | "yellow";
-  onClick: () => void;
-}) {
-  const border =
-    topBorder === "blue"
-      ? "rgba(76,201,240,0.55)"
-      : topBorder === "purple"
-      ? "rgba(108,92,231,0.55)"
-      : topBorder === "red"
-      ? "rgba(255,120,120,0.50)"
-      : "rgba(255,210,80,0.55)";
+// ── Inspection panel ──────────────────────────────────────────────────────────
+
+function InspectionPanel({ target, onClose }: { target: Choice; onClose: () => void }) {
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(() => { const t = setTimeout(() => setVisible(true), 120); return () => clearTimeout(t); }, []);
+  const data = INSPECTION_DATA[target];
+  const meta = CHOICE_META[target];
 
   return (
-    <button
-      onClick={onClick}
-      className="group relative w-full rounded-[22px] border border-white/10 bg-white/[0.03] p-7 text-left transition hover:-translate-y-1 hover:border-white/15"
-      style={{ backdropFilter: "blur(14px)", boxShadow: "0 14px 60px rgba(0,0,0,0.45)" }}
-    >
-      <div
-        className="absolute inset-x-0 top-0 h-[3px] rounded-t-[22px]"
-        style={{ background: `linear-gradient(90deg, ${border}, transparent)` }}
-      />
-
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-5">
-          <div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10"
-            style={{ background: "rgba(255,255,255,0.05)" }}
-          >
-            {icon}
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "flex-end" }}>
+      <div style={{
+        margin: "0 auto 24px", width: "100%", maxWidth: 660, padding: "0 20px", pointerEvents: "auto",
+        transition: "opacity 0.4s ease, transform 0.4s ease",
+        opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(20px)",
+      }}>
+        <div style={{ padding: "22px 24px", borderRadius: 20, background: "rgba(5,10,22,0.94)", backdropFilter: "blur(18px)", border: `1px solid ${meta.border}`, boxShadow: "0 -8px 40px rgba(0,0,0,0.4)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: meta.color, boxShadow: `0 0 10px ${meta.color}`, display: "inline-block" }} />
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", color: meta.color }}>{meta.sub.toUpperCase()}</span>
+              </div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "white", margin: 0 }}>{data.title}</h3>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", margin: "3px 0 0", letterSpacing: "0.06em" }}>{data.subtitle}</p>
+            </div>
+            <button onClick={onClose} style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.45)", fontSize: 12, cursor: "pointer", flexShrink: 0, marginLeft: 16 }}>
+              ✕ Fermer
+            </button>
           </div>
 
-          <div>
-            <div className="text-xl font-semibold text-white">{title}</div>
-            <div className="mt-2 text-sm leading-6 text-white/55">{subtitle}</div>
+          <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 7 }}>
+            {data.facts.map((f, i) => (
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
+                <span style={{ color: meta.color, flexShrink: 0, marginTop: 1, opacity: 0.8 }}>›</span>{f}
+              </li>
+            ))}
+          </ul>
+
+          <div style={{ padding: "10px 14px", borderRadius: 10, background: `${meta.color}0d`, border: `1px solid ${meta.color}22` }}>
+            <span style={{ fontSize: 12, color: data.noteColor, lineHeight: 1.5, fontStyle: "italic" }}>
+              <strong style={{ fontStyle: "normal" }}>Note clinique :</strong> {data.note}
+            </span>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {tag && (
-          <div className="shrink-0">
-            <Pill tone={tagTone ?? "blue"}>{tag}</Pill>
+// ── Exploration ───────────────────────────────────────────────────────────────
+
+function ExplorationOverlay({
+  visited, inspecting, onReady,
+}: { visited: Set<Choice>; inspecting: Choice | null; onReady: () => void }) {
+  const all: Choice[] = ["exercise", "medical", "comms"];
+  const allVisited = all.every(c => visited.has(c));
+  const [showHint, setShowHint] = React.useState(true);
+  React.useEffect(() => { const t = setTimeout(() => setShowHint(false), 5000); return () => clearTimeout(t); }, []);
+
+  if (inspecting) return null;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {/* Object labels */}
+      {[
+        { id: "exercise" as Choice, label: "ARED", sub: "Résistance", style: { left: "10%", top: "55%" } },
+        { id: "medical" as Choice,  label: "KIT MÉDICAL", sub: "Pharmacologie", style: { right: "10%", top: "53%" } },
+        { id: "comms" as Choice,    label: "COMMS", sub: "Mission Control", style: { left: "50%", transform: "translateX(-50%)", bottom: "27%" } },
+      ].map(({ id, label, sub, style }) => {
+        const isVisited = visited.has(id);
+        return (
+          <div key={id} style={{ position: "absolute", ...style, transition: "opacity 0.5s", opacity: showHint ? 0.7 : 0.35, pointerEvents: "none" }}>
+            <div style={{ padding: "5px 12px", borderRadius: 8, background: "rgba(5,10,22,0.65)", backdropFilter: "blur(8px)", border: `1px solid ${isVisited ? CHOICE_META[id].border : "rgba(255,255,255,0.07)"}`, textAlign: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: isVisited ? CHOICE_META[id].color : "rgba(255,255,255,0.5)" }}>{label}</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{sub}</div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Bottom progress bar */}
+      <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em", margin: 0, opacity: showHint ? 0.9 : 0.5, transition: "opacity 0.8s" }}>
+          GLISSEZ POUR REGARDER · CLIQUEZ SUR LES ÉQUIPEMENTS POUR LES INSPECTER
+        </p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {all.map(id => {
+            const isVisited = visited.has(id);
+            return (
+              <div key={id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: isVisited ? CHOICE_META[id].color : "rgba(255,255,255,0.15)", boxShadow: isVisited ? `0 0 8px ${CHOICE_META[id].color}` : "none", transition: "all 0.3s" }} />
+                <span style={{ fontSize: 10, color: isVisited ? CHOICE_META[id].color : "rgba(255,255,255,0.3)", letterSpacing: "0.08em", transition: "color 0.3s" }}>
+                  {CHOICE_META[id].label}
+                </span>
+              </div>
+            );
+          })}
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>
+            {visited.size}/3 inspectés
+          </span>
+        </div>
+
+        {allVisited && (
+          <div style={{ pointerEvents: "auto" }}>
+            <button onClick={onReady} style={{ padding: "10px 28px", borderRadius: 12, background: "rgba(76,201,240,0.12)", backdropFilter: "blur(10px)", border: "1px solid rgba(76,201,240,0.35)", color: "#4CC9F0", fontWeight: 700, fontSize: 13, letterSpacing: "0.08em", cursor: "pointer", animation: "fadeIn 0.5s ease" }}>
+              MODULE MAÎTRISÉ — COMMENCER LA MISSION →
+            </button>
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
-function XPRing({ xp, max = 100 }: { xp: number; max?: number }) {
-  const pct = clamp((xp / max) * 100, 0, 100);
+// ── Crisis ────────────────────────────────────────────────────────────────────
+
+function CrisisOverlay({ title, text, accent }: { title: string; text: string; accent: string }) {
+  const [v, setV] = React.useState(false);
+  React.useEffect(() => { const t = setTimeout(() => setV(true), 300); return () => clearTimeout(t); }, []);
   return (
-    <div className="relative h-44 w-44">
-      <div
-        className="absolute inset-0 rounded-full"
-        style={{
-          background:
-            "conic-gradient(rgba(76,201,240,0.95) 0deg, rgba(108,92,231,0.95) " +
-            `${(pct / 100) * 360}deg, rgba(255,255,255,0.10) ${(pct / 100) * 360}deg)`,
-          filter: "drop-shadow(0 0 18px rgba(108,92,231,0.22))",
-        }}
-      />
-      <div className="absolute inset-[10px] rounded-full border border-white/10 bg-black/40" style={{ backdropFilter: "blur(10px)" }} />
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <div className="text-5xl font-semibold text-white">+{xp}</div>
-        <div className="mt-1 text-xs tracking-[0.18em] text-sky-200">XP EARNED</div>
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ marginTop: 84, padding: "10px 28px", borderRadius: 10, background: `rgba(${accent}, 0.18)`, backdropFilter: "blur(10px)", border: `1px solid rgba(${accent}, 0.45)`, display: "flex", alignItems: "center", gap: 12, transition: "opacity 0.5s", opacity: v ? 1 : 0 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: `rgb(${accent})`, boxShadow: `0 0 10px rgb(${accent})`, display: "inline-block" }} />
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", color: `rgb(${accent})` }}>{title}</span>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: `rgb(${accent})`, boxShadow: `0 0 10px rgb(${accent})`, display: "inline-block" }} />
+      </div>
+      <p style={{ marginTop: 20, maxWidth: 520, textAlign: "center", fontSize: 15, color: "rgba(255,255,255,0.78)", lineHeight: 1.75, padding: "0 24px", transition: "opacity 0.8s", transitionDelay: "0.5s", opacity: v ? 1 : 0 }}>
+        {text}
+      </p>
+    </div>
+  );
+}
+
+// ── Decision ──────────────────────────────────────────────────────────────────
+
+function DecisionOverlay({ title, context, hoveredId, descriptions, onChoose }: {
+  title: string; context: string; hoveredId: Choice | null;
+  descriptions: Record<Choice, string>; onChoose: (c: Choice) => void;
+}) {
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div style={{ paddingTop: 90, textAlign: "center" }}>
+        <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "rgba(255,210,100,0.88)", fontWeight: 700, margin: 0 }}>SÉLECTIONNEZ LE PROTOCOLE</p>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginTop: 5, maxWidth: 520, margin: "6px auto 0" }}>{title}</p>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4, maxWidth: 480, margin: "4px auto 0", lineHeight: 1.5 }}>{context}</p>
+      </div>
+      <div style={{ padding: "0 18px 22px", display: "flex", gap: 10, pointerEvents: "auto" }}>
+        {(["exercise", "medical", "comms"] as Choice[]).map((id) => {
+          const m = CHOICE_META[id];
+          const active = hoveredId === id;
+          return (
+            <button key={id} onClick={() => onChoose(id)} style={{ flex: 1, padding: "15px 13px", borderRadius: 14, cursor: "pointer", background: active ? "rgba(5,10,22,0.92)" : "rgba(5,10,22,0.58)", backdropFilter: "blur(12px)", border: `1px solid ${active ? m.border : "rgba(255,255,255,0.07)"}`, textAlign: "left", transition: "all 0.18s", transform: active ? "translateY(-3px)" : "none", boxShadow: active ? `0 8px 28px rgba(0,0,0,0.5)` : "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: active ? m.color : "rgba(255,255,255,0.42)" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.color, boxShadow: active ? `0 0 8px ${m.color}` : "none", flexShrink: 0 }} />
+                {m.label}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 7 }}>{m.sub}</div>
+              <div style={{ fontSize: 12, color: active ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.28)", lineHeight: 1.5, transition: "color 0.18s" }}>{descriptions[id]}</div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function usePulse(durationMs = 520) {
-  const [pulse, setPulse] = React.useState(0);
-  const trigger = React.useCallback(() => {
-    const start = performance.now();
-    const tick = (now: number) => {
-      const t = clamp((now - start) / durationMs, 0, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setPulse(1 - eased);
-      if (t < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [durationMs]);
+// ── Outcome ───────────────────────────────────────────────────────────────────
 
-  return { pulse, trigger };
-}
-
-function MiniNavButton({
-  icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+function OutcomeOverlay({ good, title, bullets, onContinue }: { good: boolean; title: string; bullets: string[]; onContinue: () => void }) {
+  const [v, setV] = React.useState(false);
+  React.useEffect(() => { const t = setTimeout(() => setV(true), 1100); return () => clearTimeout(t); }, []);
+  const accent = good ? "#4CC9F0" : "#ffbb44";
+  const bg = good ? "rgba(76,201,240,0.07)" : "rgba(255,180,0,0.07)";
+  const border = good ? "rgba(76,201,240,0.22)" : "rgba(255,180,0,0.22)";
   return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        "inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10",
-        "bg-black/20 text-white/55 transition",
-        "hover:bg-black/30 hover:text-white/80",
-        "disabled:opacity-25 disabled:hover:bg-black/20 disabled:hover:text-white/55",
-      ].join(" ")}
-      style={{ backdropFilter: "blur(10px)" }}
-    >
-      {icon}
-    </button>
-  );
-}
-
-function TelemetryPill({ alt, vel, hr }: { alt: string; vel: string; hr: string }) {
-  return (
-    <div
-      className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs text-white/70"
-      style={{ backdropFilter: "blur(10px)" }}
-    >
-      <span className="text-white/55">ALT</span> <span className="text-white">{alt}</span>
-      <span className="h-4 w-px bg-white/10" />
-      <span className="text-white/55">VEL</span> <span className="text-white">{vel}</span>
-      <span className="h-4 w-px bg-white/10" />
-      <span className="text-white/55">HR</span> <span className="text-white">{hr}</span>
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "flex-end", transition: "opacity 0.8s", opacity: v ? 1 : 0 }}>
+      <div style={{ margin: "0 auto 26px", maxWidth: 580, width: "100%", padding: "0 18px", pointerEvents: "auto" }}>
+        <div style={{ padding: "20px 22px", borderRadius: 18, background: "rgba(5,10,22,0.92)", backdropFilter: "blur(16px)", border: `1px solid ${border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <span style={{ padding: "3px 11px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", background: bg, color: accent, border: `1px solid ${border}` }}>{good ? "PROTOCOLE ADAPTÉ" : "PROTOCOLE SOUS-OPTIMAL"}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "white" }}>{title}</span>
+          </div>
+          <ul style={{ margin: "0 0 16px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+            {bullets.map((b, i) => (
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
+                <span style={{ color: accent, flexShrink: 0, marginTop: 1 }}>›</span>{b}
+              </li>
+            ))}
+          </ul>
+          <button onClick={onContinue} style={{ padding: "10px 22px", borderRadius: 10, cursor: "pointer", background: bg, color: accent, fontWeight: 700, fontSize: 13, letterSpacing: "0.06em", border: `1px solid ${border}` }}>
+            CONTINUER →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
+// ── Debrief ───────────────────────────────────────────────────────────────────
+
+function DebriefOverlay({ sasChoice, fluidChoice, onExit, onReplay }: { sasChoice: Choice | null; fluidChoice: Choice | null; onExit: () => void; onReplay: () => void }) {
+  const sasGood = sasChoice === SAS_CORRECT;
+  const fluidGood = fluidChoice === FLUID_CORRECT;
+  const xp = (sasGood ? 100 : 40) + (fluidGood ? 100 : 40);
+
+  const decisions = [
+    { label: "Scénario 1 — Syndrome d'Adaptation Spatiale (Jour 2)", choice: sasChoice, good: sasGood, correct: SAS_CORRECT,
+      lesson: sasGood
+        ? "Correct : le SAS nécessite repos et antiémétique. L'exercice à ce stade aggraverait la désorientation neurovestibulaire."
+        : `Incorrect : la réponse attendue était ${CHOICE_META[SAS_CORRECT].label}. L'exercice en phase de SAS stimule un système vestibulaire déjà déréglé.` },
+    { label: "Scénario 2 — Déconditionnement musculo-squelettique (Jour 14)", choice: fluidChoice, good: fluidGood, correct: FLUID_CORRECT,
+      lesson: fluidGood
+        ? "Correct : l'ARED est la contre-mesure principale. La charge mécanique simulée limite la perte musculaire et osseuse."
+        : `Incorrect : la réponse attendue était ${CHOICE_META[FLUID_CORRECT].label}. Le traitement symptomatique ne corrige pas le déconditionnement structurel.` },
+  ];
+
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, pointerEvents: "auto" }}>
+      <div style={{ width: "100%", maxWidth: 680, padding: "28px 32px", borderRadius: 24, background: "rgba(5,10,22,0.93)", backdropFilter: "blur(18px)", border: "1px solid rgba(108,92,231,0.28)", boxShadow: "0 24px 80px rgba(0,0,0,0.6)", overflowY: "auto", maxHeight: "90vh" }}>
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <p style={{ fontSize: 10, letterSpacing: "0.22em", color: "rgba(108,92,231,0.8)", fontWeight: 700, margin: "0 0 8px" }}>MISSION COMPLÉTÉE — PHYSIOLOGIE SPATIALE</p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "white", margin: 0 }}>Bilan de mission</h2>
+        </div>
+
+        {/* XP */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
+          <div style={{ width: 92, height: 92, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: `conic-gradient(rgba(76,201,240,0.9) 0deg, rgba(108,92,231,0.9) ${(xp / 200) * 360}deg, rgba(255,255,255,0.06) ${(xp / 200) * 360}deg)`, boxShadow: "0 0 24px rgba(108,92,231,0.15)" }}>
+            <div style={{ width: 68, height: 68, borderRadius: "50%", background: "rgba(5,10,22,0.93)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 20, fontWeight: 700, color: "white" }}>+{xp}</span>
+              <span style={{ fontSize: 9, color: "rgba(76,201,240,0.8)", letterSpacing: "0.12em" }}>XP</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Decision recap */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+          {decisions.map(({ label, choice, good, lesson }, i) => (
+            <div key={i} style={{ padding: "14px 16px", borderRadius: 12, background: "rgba(255,255,255,0.02)", border: `1px solid ${good ? "rgba(76,201,240,0.18)" : "rgba(255,180,0,0.18)"}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 700, letterSpacing: "0.1em", background: good ? "rgba(76,201,240,0.1)" : "rgba(255,180,0,0.1)", color: good ? "#4CC9F0" : "#ffbb44", border: `1px solid ${good ? "rgba(76,201,240,0.2)" : "rgba(255,180,0,0.2)"}` }}>
+                  {good ? "✓ CORRECT" : "✗ INCORRECT"}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.65)" }}>{label}</span>
+              </div>
+              {choice && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>Votre choix : <span style={{ color: good ? "#4CC9F0" : "#ffbb44" }}>{CHOICE_META[choice].label}</span></div>}
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.55, margin: 0 }}>{lesson}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Key insight */}
+        <div style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(108,92,231,0.06)", border: "1px solid rgba(108,92,231,0.16)", marginBottom: 20 }}>
+          <p style={{ fontSize: 12, color: "rgba(167,139,250,0.85)", lineHeight: 1.6, margin: 0 }}>
+            <strong style={{ color: "rgb(167,139,250)" }}>Leçon clé :</strong> Mêmes équipements, mêmes symptômes apparents — mais deux contextes physiologiques distincts demandent des réponses opposées. Le SAS (adaptation neurovestibulaire) et le déconditionnement (perte de charge mécanique) ne se traitent pas de la même façon.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onExit} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "none", cursor: "pointer", background: "linear-gradient(135deg, rgba(108,92,231,0.85), rgba(76,201,240,0.75))", color: "white", fontWeight: 700, fontSize: 14, boxShadow: "0 6px 20px rgba(108,92,231,0.28)" }}>CONTINUER →</button>
+          <button onClick={onReplay} style={{ flex: 0.4, padding: "12px 0", borderRadius: 12, cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 600, fontSize: 14 }}>Rejouer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 export function ImmersiveCapsuleMicrogravity() {
   const navigate = useNavigate();
-  const [screen, setScreen] = React.useState<Screen>(1);
-  const t = useTelemetry();
+  const [stage, setStage] = React.useState<Stage>("briefing");
+  const [sasChoice, setSasChoice] = React.useState<Choice | null>(null);
+  const [fluidChoice, setFluidChoice] = React.useState<Choice | null>(null);
+  const [briefingProgress, setBriefingProgress] = React.useState(0);
+  const [hoveredId, setHoveredId] = React.useState<Choice | null>(null);
+  const [outcomeGood, setOutcomeGood] = React.useState<boolean | null>(null);
+  const [visitedObjects, setVisitedObjects] = React.useState<Set<Choice>>(new Set());
+  const [inspecting, setInspecting] = React.useState<Choice | null>(null);
 
-  const [choice, setChoice] = React.useState<Choice | null>(null);
-  const { pulse, trigger } = usePulse(520);
+  const isCrisis = ["sas_crisis", "sas_decision", "fluid_crisis", "fluid_decision"].includes(stage);
+  const { hr, o2 } = useTelemetry(isCrisis);
 
   React.useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const progress = React.useMemo(() => {
-    const map: Record<Screen, number> = { 1: 0, 2: 12, 3: 30, 4: 55, 5: 72, 6: 90, 7: 100 };
-    return map[screen] ?? 0;
-  }, [screen]);
+  const handleWheel = React.useCallback((e: React.WheelEvent) => {
+    if (stage !== "briefing") return;
+    e.preventDefault();
+    setBriefingProgress(p => Math.max(0, Math.min(1, p + (e.deltaY > 0 ? 0.038 : -0.038))));
+  }, [stage]);
 
-  const next = () => {
-    trigger();
-    setScreen((s) => (Math.min(7, s + 1) as Screen));
-  };
-  const back = () => {
-    trigger();
-    setScreen((s) => (Math.max(1, s - 1) as Screen));
-  };
+  React.useEffect(() => {
+    if (stage === "sas_crisis") {
+      const t = setTimeout(() => setStage("sas_decision"), 5500);
+      return () => clearTimeout(t);
+    }
+    if (stage === "fluid_crisis") {
+      const t = setTimeout(() => setStage("fluid_decision"), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [stage]);
 
-  const onChoose = (c: Choice) => {
-    trigger();
-    setChoice(c);
-    setScreen(6);
-  };
+  const handleInteract = React.useCallback((choice: Choice) => {
+    if (stage === "exploration") {
+      setInspecting(choice);
+      setVisitedObjects(prev => new Set([...prev, choice]));
+      return;
+    }
+    if (stage === "sas_decision") {
+      const good = choice === SAS_CORRECT;
+      setSasChoice(choice);
+      setOutcomeGood(good);
+      setStage("sas_outcome");
+    } else if (stage === "fluid_decision") {
+      const good = choice === FLUID_CORRECT;
+      setFluidChoice(choice);
+      setOutcomeGood(good);
+      setStage("fluid_outcome");
+    }
+  }, [stage]);
 
-  const onExit = () => {
-    trigger();
+  const closeInspection = React.useCallback(() => {
+    setInspecting(null);
+  }, []);
+
+  const handleExit = React.useCallback(() => {
     if (window.history.length > 1) navigate(-1);
     else navigate("/app/catalog");
-  };
+  }, [navigate]);
 
-  const feedback = React.useMemo(() => {
-    if (!choice) return null;
-    const map: Record<
-      Choice,
-      { pillTone: "green" | "yellow"; pillLabel: string; title: string; subtitle: string; bullets: string[] }
-    > = {
-      exercise: {
-        pillTone: "green",
-        pillLabel: "MISSION SUCCESS",
-        title: "Exercise Protocol",
-        subtitle:
-          "Best option. Resistance exercise helps counter fluid shifts and maintains muscle tone in microgravity.",
-        bullets: ["Improved circulation", "Reduced facial congestion", "Maintained muscle strength"],
-      },
-      nothing: {
-        pillTone: "yellow",
-        pillLabel: "MISSION RISK",
-        title: "Do Nothing",
-        subtitle:
-          "Passive option. Some symptoms may stabilize, but you're letting the risk evolve without action.",
-        bullets: ["Monitoring required", "Risk of prolonged congestion", "No active countermeasure"],
-      },
-      drink: {
-        pillTone: "yellow",
-        pillLabel: "MISSION RISK",
-        title: "Drink Fast",
-        subtitle:
-          "Hydration helps, but in microgravity fluid shifts can worsen congestion if used alone.",
-        bullets: ["Hydration +", "May increase congestion", "Should be paired with active countermeasure"],
-      },
-      belt: {
-        pillTone: "yellow",
-        pillLabel: "MISSION RISK",
-        title: "Adjust Fluid Shift Belt",
-        subtitle:
-          "Can help, but depends on correct setup and context. Not the best first move on its own.",
-        bullets: ["May reduce upper-body pressure", "Variable effect", "Best combined with exercise"],
-      },
-    };
-    return map[choice];
-  }, [choice]);
+  const handleReplay = React.useCallback(() => {
+    setSasChoice(null);
+    setFluidChoice(null);
+    setOutcomeGood(null);
+    setBriefingProgress(0);
+    setVisitedObjects(new Set());
+    setInspecting(null);
+    setStage("briefing");
+  }, []);
 
-  const stats = React.useMemo(
-    () => ({
-      alt: `${t.altKm.toFixed(1)}km`,
-      vel: `${t.velKms.toFixed(2)}km/s`,
-      hr: `${t.hr}bpm`,
-    }),
-    [t.altKm, t.velKms, t.hr]
-  );
+  const currentChoice = stage === "sas_outcome" ? sasChoice : stage === "fluid_outcome" ? fluidChoice : null;
 
   return (
-    <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0">
-        <SpaceScene
-          className="h-full w-full"
-          progress01={progress / 100}
-          pulse={pulse}
-          onUserPulse={trigger}
-        />
+    <div className="fixed inset-0 z-[60]" onWheel={handleWheel} style={{ overflow: "hidden" }}>
+      <SpaceScene
+        stage={stage}
+        choice={currentChoice}
+        briefingProgress={briefingProgress}
+        onInteract={handleInteract}
+        onHoverChange={setHoveredId}
+        outcomeGood={outcomeGood}
+        zoomTarget={inspecting}
+        className="absolute inset-0"
+      />
 
-        <div
-          className="absolute inset-0"
-          style={{
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
-            background:
-              "radial-gradient(circle at 30% 20%, rgba(108,92,231,0.18), transparent 55%)," +
-              "radial-gradient(circle at 70% 30%, rgba(76,201,240,0.12), transparent 60%)," +
-              "linear-gradient(to bottom, rgba(0,0,0,0.48), rgba(0,0,0,0.70))",
-          }}
-        />
-        <div className="pointer-events-none absolute inset-0 opacity-20 space-grid" />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(0,0,0,0.50) 100%)", zIndex: 1 }} />
+
+      <div className="absolute inset-0" style={{ zIndex: 10, pointerEvents: "none" }}>
+        <TopBar onExit={handleExit} hr={hr} o2={o2} crisis={isCrisis} />
+
+        {stage === "briefing" && <BriefingOverlay progress={briefingProgress} onEnter={() => setStage("exploration")} />}
+
+        {stage === "exploration" && (
+          <>
+            <ExplorationOverlay visited={visitedObjects} inspecting={inspecting} onReady={() => setStage("sas_crisis")} />
+            {inspecting && <InspectionPanel target={inspecting} onClose={closeInspection} />}
+          </>
+        )}
+
+        {stage === "sas_crisis" && (
+          <CrisisOverlay accent="255,140,30" title="ALERTE MÉDICALE — SYNDROME D'ADAPTATION SPATIALE"
+            text="Jour 2. Alexandre signale des nausées persistantes, une désorientation progressive et une incapacité à maintenir une trajectoire précise lors des manipulations. Son cerveau tente de réconcilier des repères sensoriels contradictoires — le système neurovestibulaire est en phase d'adaptation."
+          />
+        )}
+
+        {stage === "sas_decision" && (
+          <DecisionOverlay
+            title="Jour 2 — Syndrome d'Adaptation Spatiale actif"
+            context="Alexandre présente les symptômes classiques d'une adaptation neurovestibulaire. Les informations visuelles, proprioceptives et vestibulaires ne correspondent plus aux schémas terrestres."
+            hoveredId={hoveredId} onChoose={handleInteract}
+            descriptions={{
+              exercise: "Initier un protocole ARED résistif de 30 minutes pour contrecarrer le déconditionnement précoce.",
+              medical:  "Administrer un antiémétique (Promethazine) et prescrire un repos encadré de 12 à 24h.",
+              comms:    "Transmettre les données biométriques à mission control et demander des directives médicales.",
+            }}
+          />
+        )}
+
+        {stage === "sas_outcome" && sasChoice && (
+          <OutcomeOverlay
+            good={sasChoice === SAS_CORRECT}
+            title={sasChoice === SAS_CORRECT ? "Adaptation neurovestibulaire préservée" : "Protocole inadapté au contexte SAS"}
+            bullets={sasChoice === SAS_CORRECT
+              ? ["L'antiémétique réduit les nausées sans surcharger le système vestibulaire en cours de recalibrage", "Le repos permet au cerveau de réorganiser ses référentiels sensoriels sans stimulus perturbateur", "Alexandre récupère progressivement — opérationnel pour les activités physiques dès le Jour 4"]
+              : sasChoice === "exercise"
+              ? ["L'effort physique stimule davantage un système vestibulaire déjà en phase d'adaptation — les nausées s'aggravent", "Le SAS ne répond pas aux mêmes protocoles que le déconditionnement — les deux pathologies sont distinctes", "Alexandre présente une aggravation des symptômes sur les 8 heures suivantes"]
+              : ["Mission control confirme le protocole médicamenteux — celui que vous pouviez appliquer immédiatement", "45 minutes de délai de transmission dans une situation nécessitant une réponse rapide", "L'autonomie décisionnelle de l'équipage est une ressource critique — chaque protocole standard doit être maîtrisé"]
+            }
+            onContinue={() => { setOutcomeGood(null); setStage("fluid_crisis"); }}
+          />
+        )}
+
+        {stage === "fluid_crisis" && (
+          <CrisisOverlay accent="255,60,20" title="ALERTE CRITIQUE — DÉCONDITIONNEMENT PHYSIOLOGIQUE ACTIF"
+            text="Jour 14. Bilan médical d'Alexandre : perte musculaire mesurée à 6% sur les membres inférieurs, densité osseuse en déclin dans les zones portantes, redistribution des fluides vers le thorax et la tête, légère dérive cardiovasculaire à l'ECG. Ce n'est pas une crise aiguë — c'est l'effet cumulatif de 14 jours sans charge mécanique suffisante."
+          />
+        )}
+
+        {stage === "fluid_decision" && (
+          <DecisionOverlay
+            title="Jour 14 — Le contexte physiologique a changé"
+            context="Alexandre ne souffre plus de SAS. Il s'agit maintenant d'un déconditionnement musculo-squelettique progressif — mécanisme opposé, protocole différent."
+            hoveredId={hoveredId} onChoose={handleInteract}
+            descriptions={{
+              exercise: "Protocole ARED 45 min — résistance ciblant les muscles porteurs, les membres inférieurs et le système cardiovasculaire.",
+              medical:  "Corticostéroïde anti-inflammatoire et décongestif nasal pour traiter la congestion liée aux fluides.",
+              comms:    "Transmettre les données biométriques à mission control pour réévaluation du programme d'exercice.",
+            }}
+          />
+        )}
+
+        {stage === "fluid_outcome" && fluidChoice && (
+          <OutcomeOverlay
+            good={fluidChoice === FLUID_CORRECT}
+            title={fluidChoice === FLUID_CORRECT ? "Contre-mesure active engagée" : "Cause structurelle non traitée"}
+            bullets={fluidChoice === FLUID_CORRECT
+              ? ["L'exercice résistif ARED stimule les muscles porteurs et freine la perte de masse musculaire", "La charge mécanique simulée envoie un signal osseux — la densité se stabilise progressivement", "L'activité cardiovasculaire maintient la capacité aérobie et prépare au retour en gravité"]
+              : fluidChoice === "medical"
+              ? ["Le traitement réduit temporairement la congestion mais ne traite pas la perte musculaire ni osseuse", "Sans charge mécanique régulière, le déconditionnement structurel continue à progresser", "La médication est un complément — jamais une contre-mesure primaire au déconditionnement"]
+              : ["Mission control recommande le protocole ARED — que vous pouviez initier immédiatement", "30 minutes de délai sur une situation de déconditionnement progressif — chaque session compte", "Sur les missions longues, retarder l'exercice aggrave les effets — la prescription doit être autonome"]
+            }
+            onContinue={() => setStage("debrief")}
+          />
+        )}
+
+        {stage === "debrief" && (
+          <DebriefOverlay sasChoice={sasChoice} fluidChoice={fluidChoice} onExit={handleExit} onReplay={handleReplay} />
+        )}
       </div>
 
-      <div className="fixed left-0 right-0 top-0 z-[80] px-4 pt-4">
-        <div className="mx-auto w-full max-w-[1200px]">
-          <div
-            className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-3"
-            style={{ backdropFilter: "blur(12px)" }}
-          >
-            <button
-              onClick={onExit}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75 hover:bg-black/40"
-              style={{ backdropFilter: "blur(10px)" }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Exit
-            </button>
-
-            <div className="flex justify-center">
-              <TelemetryPill alt={stats.alt} vel={stats.vel} hr={stats.hr} />
-            </div>
-
-            <div className="hidden md:flex items-center justify-end">
-              <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] tracking-[0.24em] text-white/50">
-                IMMERSIVE
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative z-10 flex h-full w-full items-center justify-center px-6 pb-10 pt-28 md:pt-24">
-        <div className="w-full max-w-[1200px]">
-          <GlassPanel className="relative overflow-hidden px-8 py-12 md:px-14 md:py-14">
-            <div className="pointer-events-none absolute inset-0 rounded-[22px] shadow-[inset_0_0_220px_rgba(0,0,0,0.65)]" />
-
-            {screen === 1 && (
-              <div className="mx-auto max-w-4xl text-center">
-                <Pill>
-                  <span className="h-2 w-2 rounded-full bg-sky-300" />
-                  MISSION BRIEFING
-                </Pill>
-
-                <h1 className="mt-8 text-4xl font-semibold tracking-tight text-white md:text-6xl">
-                  Arrival to Low Earth Orbit
-                </h1>
-
-                <p className="mt-4 text-base text-white/65 md:text-lg">
-                  Your body is about to experience microgravity.
-                </p>
-
-                <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-                  <StatCard label="Altitude" value={`${t.altKm.toFixed(0)} km`} />
-                  <StatCard label="Velocity" value={`${t.velKms.toFixed(2)} km/s`} />
-                  <StatCard label="Gravity" value={`${t.gravG.toFixed(2)} g`} />
-                </div>
-
-                <div className="mt-10 flex justify-center">
-                  <Button
-                    className="h-12 w-56 rounded-2xl"
-                    onClick={next}
-                    style={{
-                      background:
-                        "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                      boxShadow:
-                        "0 10px 30px rgba(0,0,0,0.45), 0 0 25px rgba(108,92,231,0.20)",
-                    }}
-                  >
-                    Start Mission
-                  </Button>
-                </div>
-
-              </div>
-            )}
-
-            {screen === 2 && (
-              <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
-                <div>
-                  <div className="text-center text-xs tracking-[0.18em] text-sky-200/90">
-                    CAPSULE OVERVIEW
-                  </div>
-
-                  <h2 className="mt-10 text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                    Human Adaptation <br /> to Microgravity
-                  </h2>
-
-                  <p className="mt-6 max-w-xl text-base leading-7 text-white/60">
-                    Learn how the human body adapts to the absence of gravity and the physiological challenges
-                    astronauts face.
-                  </p>
-
-                  <div className="mt-10 flex items-center gap-10">
-                    {["01", "02", "03", "04", "05"].map((n, i) => {
-                      const active = i === 0;
-                      return (
-                        <div key={n} className="flex flex-col items-center">
-                          <div
-                            className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/10"
-                            style={{
-                              background: active ? "rgba(76,201,240,0.12)" : "rgba(255,255,255,0.03)",
-                              boxShadow: active ? "0 0 30px rgba(76,201,240,0.18)" : "none",
-                            }}
-                          >
-                            <div
-                              className="absolute inset-[-10px] rounded-full border border-white/10"
-                              style={{ opacity: active ? 0.7 : 0.25 }}
-                            />
-                            {active ? (
-                              <div
-                                className="flex h-14 w-14 items-center justify-center rounded-full"
-                                style={{
-                                  background:
-                                    "linear-gradient(135deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                                }}
-                              >
-                                <span className="text-lg font-semibold text-white">★</span>
-                              </div>
-                            ) : (
-                              <Lock className="h-8 w-8 text-white/35" />
-                            )}
-                          </div>
-                          <div className="mt-3 text-sm text-white/55">
-                            {active ? "Module 01" : `Module ${n}`}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-10 max-w-xl">
-                    <GlassPanel className="p-6">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                          }}
-                        >
-                          <span className="text-xl text-white">☆</span>
-                        </div>
-                        <div>
-                          <div className="text-base font-semibold text-white">Module 1 Unlocked</div>
-                          <div className="mt-1 text-sm text-white/55">Start your training</div>
-                        </div>
-                      </div>
-
-                      <div className="mt-5">
-                        <Button
-                          className="h-11 w-full rounded-2xl"
-                          onClick={next}
-                          style={{
-                            background:
-                              "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                          }}
-                        >
-                          Continue
-                        </Button>
-                      </div>
-                    </GlassPanel>
-                  </div>
-                </div>
-
-                <div className="flex items-start justify-center">
-                  <GlassPanel className="w-full max-w-md p-6">
-                    <div className="flex items-center justify-between text-xs tracking-[0.18em] text-white/55">
-                      <span>PROGRESS</span>
-                      <span>{Math.round(progress)}%</span>
-                    </div>
-                    <div className="mt-4">
-                      <ProgressBar value={progress} onPulse={trigger} />
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between text-sm text-white/60">
-                      <span className="text-sky-200">{Math.round((progress / 100) * 5)} / 5 modules</span>
-                      <span>~120 min</span>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-white/65">
-                        <div className="text-xs tracking-[0.18em]">HR</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">{t.hr}</div>
-                        <div className="mt-1 text-xs text-white/45">bpm</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-white/65">
-                        <div className="text-xs tracking-[0.18em]">FLUIDS</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">{t.fluidsL.toFixed(1)}</div>
-                        <div className="mt-1 text-xs text-white/45">L</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6">
-                      <Button variant="secondary" className="w-full rounded-2xl" onClick={back}>
-                        Back
-                      </Button>
-                    </div>
-                  </GlassPanel>
-                </div>
-              </div>
-            )}
-
-            {screen === 3 && (
-              <div>
-                <div className="text-center text-xs tracking-[0.18em] text-sky-200/90">MODULES</div>
-
-                <div className="mt-8">
-                  <h2 className="text-4xl font-semibold tracking-tight text-white">Training Path</h2>
-                  <p className="mt-2 text-sm text-white/55">5 modules to master human adaptation</p>
-                </div>
-
-                <div className="mt-10 grid gap-6 lg:grid-cols-2">
-                  <GlassPanel className="p-7">
-                    <div className="flex items-start gap-5">
-                      <div
-                        className="flex h-14 w-14 items-center justify-center rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                        }}
-                      >
-                        <span className="text-lg font-semibold text-white">01</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xl font-semibold text-white">Cardiovascular System</div>
-                        <div className="mt-2 text-sm text-white/55">
-                          Understand how the heart and circulation change in microgravity
-                        </div>
-                        <div className="mt-4 text-sm text-white/55">⏱ 25 min</div>
-                      </div>
-                      <div className="h-7 w-7 rounded-full border border-white/15" />
-                    </div>
-
-                    <div className="mt-6">
-                      <Button
-                        className="h-11 w-full rounded-2xl"
-                        onClick={next}
-                        style={{
-                          background:
-                            "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                        }}
-                      >
-                        Open
-                      </Button>
-                    </div>
-                  </GlassPanel>
-
-                  {[
-                    { title: "Muscular System", desc: "Muscle adaptation and atrophy in microgravity", dur: "20 min" },
-                    { title: "Skeletal System", desc: "Bone demineralization and fracture risk", dur: "22 min" },
-                    { title: "Body Fluids", desc: "Fluid shift and facial swelling", dur: "18 min" },
-                    { title: "Vestibular System", desc: "Spatial orientation and space motion sickness", dur: "30 min" },
-                  ].map((m) => (
-                    <GlassPanel key={m.title} className="p-7 opacity-60">
-                      <div className="flex items-start gap-5">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.02]">
-                          <Lock className="h-6 w-6 text-white/40" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-xl font-semibold text-white">{m.title}</div>
-                          <div className="mt-2 text-sm text-white/50">{m.desc}</div>
-                          <div className="mt-4 text-sm text-white/45">⏱ {m.dur}</div>
-                        </div>
-                        <Pill tone="blue">LOCKED</Pill>
-                      </div>
-                    </GlassPanel>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {screen === 4 && (
-              <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
-                <div>
-                  <h2 className="mt-6 text-5xl font-semibold tracking-tight text-white">
-                    Physiological <br /> Changes
-                  </h2>
-
-                  <div className="mt-8 max-w-xl">
-                    <GlassPanel className="p-6">
-                      <p className="text-sm leading-7 text-white/60">
-                        During the first hours in microgravity, the human body undergoes immediate and surprising changes.
-                      </p>
-                      <p className="mt-4 text-sm leading-7 text-white/45">
-                        Body fluids shift toward the upper body, creating congestion. The heart pumps differently, muscles
-                        lose constant load, and the vestibular system loses its normal reference frames.
-                      </p>
-                      <div className="mt-6 flex items-center gap-4">
-                        <div className="h-2 flex-1 rounded-full bg-white/10">
-                          <div
-                            className="h-2 w-[30%] rounded-full"
-                            style={{
-                              background:
-                                "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                            }}
-                          />
-                        </div>
-                        <div className="text-sm text-white/55">Phase 1/3</div>
-                      </div>
-                    </GlassPanel>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-6">
-                  <GlassPanel className="p-6">
-                    <div className="flex items-center gap-3 text-white">
-                      <Heart className="h-5 w-5 text-sky-300" />
-                      <div className="text-base font-semibold">Heart Rate</div>
-                    </div>
-                    <div className="mt-3 text-3xl font-semibold text-white">-10%</div>
-                  </GlassPanel>
-
-                  <GlassPanel className="p-6">
-                    <div className="flex items-center gap-3 text-white">
-                      <Droplets className="h-5 w-5 text-violet-300" />
-                      <div className="text-base font-semibold">Body Fluids</div>
-                    </div>
-                    <div className="mt-3 text-3xl font-semibold text-white">↑ 2L</div>
-                  </GlassPanel>
-
-                  <GlassPanel className="p-6">
-                    <div className="flex items-center gap-3 text-white">
-                      <Activity className="h-5 w-5 text-sky-300" />
-                      <div className="text-base font-semibold">Muscle Strength</div>
-                    </div>
-                    <div className="mt-3 text-3xl font-semibold text-white">-20%</div>
-                    <div className="mt-4 h-2 rounded-full bg-white/10">
-                      <div
-                        className="h-2 w-[62%] rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(90deg, rgba(76,201,240,0.85), rgba(108,92,231,0.95))",
-                        }}
-                      />
-                    </div>
-                  </GlassPanel>
-
-                  <Button
-                    className="h-12 rounded-2xl"
-                    onClick={next}
-                    style={{
-                      background: "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                      boxShadow: "0 14px 50px rgba(0,0,0,0.45)",
-                    }}
-                  >
-                    Continue
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {screen === 5 && (
-              <div>
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <Pill tone="yellow">INTERACTIVE SCENARIO</Pill>
-                    <h2 className="mt-6 text-5xl font-semibold tracking-tight text-white">
-                      First Symptom in Orbit
-                    </h2>
-                    <p className="mt-4 max-w-2xl text-base leading-7 text-white/60">
-                      After 2 hours in microgravity, you feel facial congestion and mild disorientation. Your body fluids
-                      are shifting upward.
-                    </p>
-                  </div>
-
-                  <GlassPanel className="w-full max-w-xl p-6">
-                    <div className="flex items-center justify-between text-sm text-white/65">
-                      <div>Physiological Status</div>
-                      <div className="flex items-center gap-2 text-amber-200">
-                        <span className="h-2 w-2 rounded-full bg-amber-300" />
-                        Minor Alert
-                      </div>
-                    </div>
-                    <div className="mt-4 h-2 rounded-full bg-white/10">
-                      <div className="h-2 w-[46%] rounded-full bg-amber-300" />
-                    </div>
-                  </GlassPanel>
-                </div>
-
-                <div className="mt-10 grid gap-6 lg:grid-cols-2">
-                  <ChoiceCard
-                    icon={<Activity className="h-6 w-6 text-sky-200" />}
-                    title="Exercise Protocol"
-                    subtitle="Perform resistance exercise for 20 minutes"
-                    tag="RECOMMENDED"
-                    tagTone="blue"
-                    topBorder="blue"
-                    onClick={() => onChoose("exercise")}
-                  />
-                  <ChoiceCard
-                    icon={<Shield className="h-6 w-6 text-rose-200" />}
-                    title="Do Nothing"
-                    subtitle="Wait and observe natural evolution"
-                    topBorder="red"
-                    onClick={() => onChoose("nothing")}
-                  />
-                  <ChoiceCard
-                    icon={<Droplets className="h-6 w-6 text-violet-200" />}
-                    title="Drink Fast"
-                    subtitle="Drink 500ml of water in 5 minutes"
-                    topBorder="purple"
-                    onClick={() => onChoose("drink")}
-                  />
-                  <ChoiceCard
-                    icon={<Wind className="h-6 w-6 text-amber-200" />}
-                    title="Adjust Fluid Belt"
-                    subtitle="Tighten the compression belt"
-                    topBorder="yellow"
-                    onClick={() => onChoose("belt")}
-                  />
-                </div>
-
-                <div className="mt-10 flex items-center justify-between">
-                  <Button variant="secondary" className="rounded-2xl" onClick={back}>
-                    Back
-                  </Button>
-                  <div className="text-sm text-white/55">+50 XP potential</div>
-                </div>
-              </div>
-            )}
-
-            {screen === 6 && (
-              <div className="mx-auto max-w-5xl">
-                <div className="text-center">
-                  <Pill tone={feedback?.pillTone ?? "green"}>
-                    <CheckCircle2 className="h-4 w-4" />
-                    {feedback?.pillLabel ?? "MISSION SUCCESS"}
-                  </Pill>
-
-                  <h2 className="mt-7 text-6xl font-semibold tracking-tight text-white">
-                    {feedback?.pillTone === "green" ? "Great Choice!" : "Risky Choice!"}
-                  </h2>
-                  <div className="mt-3 text-base text-white/55">Outcome of your decision</div>
-                </div>
-
-                <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_1.2fr] lg:items-center">
-                  <div className="flex flex-col items-center gap-6">
-                    <XPRing xp={50} max={100} />
-
-                    <div className="grid w-full grid-cols-3 gap-4">
-                      <GlassPanel className="p-5 text-center">
-                        <TrendingUp className="mx-auto h-5 w-5 text-sky-200" />
-                        <div className="mt-3 text-2xl font-semibold text-white">+50</div>
-                        <div className="mt-1 text-xs tracking-[0.18em] text-white/45">XP</div>
-                      </GlassPanel>
-                      <GlassPanel className="p-5 text-center">
-                        <Trophy className="mx-auto h-5 w-5 text-violet-200" />
-                        <div className="mt-3 text-2xl font-semibold text-white">1/5</div>
-                        <div className="mt-1 text-xs tracking-[0.18em] text-white/45">Modules</div>
-                      </GlassPanel>
-                      <GlassPanel className="p-5 text-center">
-                        <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-200" />
-                        <div className="mt-3 text-2xl font-semibold text-white">100%</div>
-                        <div className="mt-1 text-xs tracking-[0.18em] text-white/45">Accuracy</div>
-                      </GlassPanel>
-                    </div>
-                  </div>
-
-                  <GlassPanel className="p-7">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/15">
-                        <CheckCircle2 className="h-6 w-6 text-emerald-200" />
-                      </div>
-                      <div>
-                        <div className="text-xl font-semibold text-white">{feedback?.title ?? "Result"}</div>
-                        <p className="mt-2 text-sm leading-7 text-white/60">{feedback?.subtitle ?? ""}</p>
-
-                        {!!feedback?.bullets?.length && (
-                          <ul className="mt-5 space-y-2 text-sm text-emerald-200/90">
-                            {feedback.bullets.map((b) => (
-                              <li key={b}>• {b}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-8">
-                      <Button
-                        className="h-12 w-full rounded-2xl"
-                        onClick={next}
-                        style={{
-                          background:
-                            "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                        }}
-                      >
-                        Next Module
-                      </Button>
-                    </div>
-                  </GlassPanel>
-                </div>
-              </div>
-            )}
-
-            {screen === 7 && (
-              <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
-                <div className="text-center lg:text-left">
-                  <Pill tone="yellow">
-                    <Trophy className="h-4 w-4" />
-                    CAPSULE COMPLETE
-                  </Pill>
-
-                  <h2 className="mt-8 text-6xl font-semibold tracking-tight text-white">Congratulations!</h2>
-                  <div className="mt-3 text-base text-white/55">You completed the training</div>
-
-                  <div className="mt-10 flex justify-center lg:justify-start">
-                    <div className="relative">
-                      <div
-                        className="h-64 w-64 rounded-full"
-                        style={{
-                          background:
-                            "radial-gradient(circle at 30% 30%, rgba(255,210,80,0.45), rgba(255,210,80,0.08) 55%, transparent 70%)",
-                        }}
-                      />
-                      <div
-                        className="absolute inset-6 flex items-center justify-center rounded-full border border-amber-300/35 bg-black/40"
-                        style={{
-                          boxShadow: "0 0 80px rgba(255,210,80,0.12)",
-                          backdropFilter: "blur(12px)",
-                        }}
-                      >
-                        <div className="text-center">
-                          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-amber-300/30 bg-amber-300/10">
-                            <Trophy className="h-7 w-7 text-amber-200" />
-                          </div>
-                          <div className="mt-6 text-xs tracking-[0.24em] text-amber-200/90">EXPERT</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <GlassPanel className="p-7">
-                    <div className="text-xl font-semibold text-white">Skills Unlocked</div>
-                    <ul className="mt-5 space-y-3 text-sm text-white/65">
-                      <li className="flex items-center gap-3">
-                        <span className="h-2 w-2 rounded-full bg-sky-300" />
-                        Cardiovascular adaptation in microgravity
-                      </li>
-                      <li className="flex items-center gap-3">
-                        <span className="h-2 w-2 rounded-full bg-violet-300" />
-                        Body fluid management
-                      </li>
-                      <li className="flex items-center gap-3">
-                        <span className="h-2 w-2 rounded-full bg-sky-300" />
-                        Space exercise protocols
-                      </li>
-                      <li className="flex items-center gap-3">
-                        <span className="h-2 w-2 rounded-full bg-violet-300" />
-                        Response to microgravity symptoms
-                      </li>
-                    </ul>
-                  </GlassPanel>
-
-                  <GlassPanel className="p-7">
-                    <div className="text-sm text-white/60">Total XP Earned</div>
-                    <div className="mt-2 text-4xl font-semibold text-white">250 XP</div>
-                    <div className="mt-6 grid grid-cols-2 gap-4">
-                      <Button
-                        className="h-12 rounded-2xl"
-                        style={{
-                          background:
-                            "linear-gradient(90deg, rgba(108,92,231,0.95), rgba(76,201,240,0.85))",
-                        }}
-                        onClick={() => navigate("/app/catalog")}
-                      >
-                        Next Capsule →
-                      </Button>
-
-                      <Button variant="secondary" className="h-12 rounded-2xl" onClick={() => setScreen(1)}>
-                        Replay
-                      </Button>
-                    </div>
-                  </GlassPanel>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-10 flex items-center justify-between">
-              <MiniNavButton
-                label="Prev"
-                icon={<ChevronLeft className="h-4 w-4" />}
-                onClick={back}
-                disabled={screen === 1}
-              />
-
-              <MiniNavButton
-                label="Next"
-                icon={<ChevronRight className="h-4 w-4" />}
-                onClick={next}
-                disabled={screen === 7}
-              />
-            </div>
-          </GlassPanel>
-        </div>
-      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      `}</style>
     </div>
   );
 }

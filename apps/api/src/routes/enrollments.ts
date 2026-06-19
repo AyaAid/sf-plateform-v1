@@ -47,6 +47,7 @@ enrollmentsRouter.get("/", async (req: AuthRequest, res) => {
               modules: {
                 include: {
                   chapters: {
+                    where: { isPublished: true },
                     include: {
                       progress: { where: { userId } },
                     },
@@ -61,18 +62,27 @@ enrollmentsRouter.get("/", async (req: AuthRequest, res) => {
     orderBy: { enrolledAt: "desc" },
   });
 
-  const result = enrollments.map((e) => {
-    const allChapters = e.course.capsules.flatMap((cap) =>
-      cap.modules.flatMap((mod) => mod.chapters)
+  type EnrollmentRow = (typeof enrollments)[number];
+  type CapsuleRow = EnrollmentRow["course"]["capsules"][number];
+  type ModuleRow = CapsuleRow["modules"][number];
+  type ChapterRow = ModuleRow["chapters"][number];
+  type ProgressRow = ChapterRow["progress"][number];
+
+  const result = enrollments.map((e: EnrollmentRow) => {
+    const allChapters = e.course.capsules.flatMap((cap: CapsuleRow) =>
+      cap.modules.flatMap((mod: ModuleRow) => mod.chapters)
     );
     const total = allChapters.length;
-    const completed = allChapters.filter((ch) =>
-      ch.progress.some((p) => p.status === "COMPLETED")
+    const completed = allChapters.filter((ch: ChapterRow) =>
+      ch.progress.some((p: ProgressRow) => p.status === "COMPLETED")
+    ).length;
+    const started = allChapters.filter((ch: ChapterRow) =>
+      ch.progress.some((p: ProgressRow) => p.status === "IN_PROGRESS" || p.status === "COMPLETED")
     ).length;
 
     const lastActivity = allChapters
-      .flatMap((ch) => ch.progress)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
+      .flatMap((ch: ChapterRow) => ch.progress)
+      .sort((a: ProgressRow, b: ProgressRow) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
       ?.updatedAt.toISOString();
 
     return {
@@ -86,6 +96,7 @@ enrollmentsRouter.get("/", async (req: AuthRequest, res) => {
       progress: total > 0 ? Math.round((completed / total) * 100) : 0,
       totalChapters: total,
       completedChapters: completed,
+      startedChapters: started,
       lastActivityAt: lastActivity ?? null,
     };
   });

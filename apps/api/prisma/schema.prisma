@@ -6,14 +6,25 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String?
-  createdAt    DateTime @default(now())
-  progress     Progress[]
-  enrollments  Enrollment[]
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  passwordHash  String?
+  createdAt     DateTime        @default(now())
+  role          Role            @default(USER)
+  avatarUrl     String?
+  goalDaily     Int             @default(30)
+  goalWeekly    Int             @default(5)
+  goalStreak    Int             @default(14)
+  progress      Progress[]
+  enrollments   Enrollment[]
+  blockProgress BlockProgress[]
 }
 
 model Course {
@@ -60,14 +71,29 @@ model Module {
 }
 
 model Chapter {
-  id        String   @id @default(cuid())
-  moduleId  String
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  title     String
-  sortOrder Int
-  mdPath    String
-  estMin    Int?
-  progress  Progress[]
+  id            String          @id @default(cuid())
+  moduleId      String
+  module        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title         String
+  sortOrder     Int
+  mdPath        String
+  estMin        Int?
+  isPublished   Boolean         @default(false)
+  progress      Progress[]
+  blockProgress BlockProgress[]
+}
+
+model BlockProgress {
+  id         String   @id @default(cuid())
+  userId     String
+  chapterId  String
+  blockId    String
+  answeredAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId, blockId])
 }
 
 model Progress {

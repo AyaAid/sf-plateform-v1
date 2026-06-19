@@ -45,17 +45,18 @@ export function AppLayout() {
         />
       </div>
 
-      <div style={{ padding: 16, minHeight: "100dvh" }}>
+      <div style={{ padding: 16, height: "100dvh", overflow: "hidden", boxSizing: "border-box" }}>
         <div
           style={{
             maxWidth: 1400,
             margin: "0 auto",
             display: "flex",
             gap: 24,
+            height: "100%",
           }}
         >
           <Sidebar />
-          <main style={{ flex: 1 }}>
+          <main style={{ flex: 1, overflowY: "auto", height: "100%" }}>
             <Outlet />
           </main>
         </div>

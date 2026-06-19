@@ -67,8 +67,12 @@ async function seedCourse(courseDir: string) {
     capsuleMap.get(cap)!.push(mod);
   }
 
-  // Delete existing course (cascades to capsules/modules/chapters)
-  await prisma.course.deleteMany({ where: { slug: meta.slug } });
+  // Skip if course already exists (avoids cascade-deleting Progress/BlockProgress)
+  const existing = await prisma.course.findUnique({ where: { slug: meta.slug } });
+  if (existing) {
+    console.log(`⏭️  ${meta.slug}: déjà en base, ignoré`);
+    return existing;
+  }
 
   // Build nested create structure
   const capsules = [...capsuleMap.entries()].map(
@@ -87,6 +91,7 @@ async function seedCourse(courseDir: string) {
                 sortOrder: 1,
                 mdPath: mod.mdPath,
                 estMin: mod.frontmatter.duration_minutes,
+                isPublished: true,
               },
             ],
           },

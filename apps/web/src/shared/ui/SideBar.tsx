@@ -5,7 +5,7 @@ import {
   BookOpen,
   GraduationCap,
   LogOut,
-  Sparkles,
+  Shield,
 } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -19,9 +19,9 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { to: "/app", label: "Dashboard", icon: Home, iconColor: "text-violet-400", glowColor: "rgba(139,92,246,0.6)" },
-  { to: "/app/catalog", label: "Course Catalog", icon: BookOpen, iconColor: "text-cyan-400", glowColor: "rgba(34,211,238,0.6)" },
-  { to: "/app/learning", label: "My Learning", icon: GraduationCap, iconColor: "text-pink-400", glowColor: "rgba(244,114,182,0.6)" },
+  { to: "/app", label: "Tableau de bord", icon: Home, iconColor: "text-violet-400", glowColor: "rgba(139,92,246,0.6)" },
+  { to: "/app/catalog", label: "Catalogue", icon: BookOpen, iconColor: "text-cyan-400", glowColor: "rgba(34,211,238,0.6)" },
+  { to: "/app/learning", label: "Mon apprentissage", icon: GraduationCap, iconColor: "text-pink-400", glowColor: "rgba(244,114,182,0.6)" },
 ];
 
 function getInitials(name: string | undefined) {
@@ -44,7 +44,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="relative h-dvh w-[260px] shrink-0">
+    <aside className="relative h-full w-[260px] shrink-0">
       {/* Background */}
       <div className="absolute inset-0 rounded-3xl border border-white/10 bg-[rgba(13,15,26,0.80)] backdrop-blur-xl" />
 
@@ -69,14 +69,18 @@ export function Sidebar() {
         >
           {/* Avatar */}
           <div
-            className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold text-white"
+            className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white"
             style={{
-              background: "linear-gradient(135deg, rgba(139,92,246,0.7), rgba(6,182,212,0.7))",
+              background: user?.avatarUrl ? "transparent" : "linear-gradient(135deg, rgba(139,92,246,0.7), rgba(6,182,212,0.7))",
               boxShadow: "0 0 16px rgba(139,92,246,0.35)",
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            {getInitials(user?.name ?? undefined)}
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+            ) : (
+              getInitials(user?.name ?? undefined)
+            )}
             <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[#0D0F1A] bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
           </div>
 
@@ -155,14 +159,53 @@ export function Sidebar() {
           })}
         </nav>
 
+        {/* ── Admin ── */}
+        {user?.role === "ADMIN" && (
+          <>
+            <div className="mx-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                cn(
+                  "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition",
+                  "text-muted-foreground hover:text-foreground",
+                  isActive
+                    ? "bg-violet-500/10 text-violet-300 border border-violet-500/20"
+                    : "hover:bg-white/[0.03]"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className="flex size-8 shrink-0 items-center justify-center rounded-xl transition"
+                    style={
+                      isActive
+                        ? { background: "rgba(139,92,246,0.15)", boxShadow: "0 0 12px rgba(139,92,246,0.5)", border: "1px solid rgba(139,92,246,0.3)" }
+                        : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }
+                    }
+                  >
+                    <Shield className={cn("size-4 transition", isActive ? "text-violet-400" : "text-foreground/40")} />
+                  </div>
+                  <span className="font-medium">Admin</span>
+                </>
+              )}
+            </NavLink>
+          </>
+        )}
+
         {/* Divider */}
         <div className="mx-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
         {/* ── Brand + Logout ── */}
         <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Sparkles className="size-3 text-violet-400" />
-            <span className="font-medium tracking-wide">Stars Factory</span>
+          <div className="flex items-center gap-2">
+            <img
+              src="/Stars%20Factory_Revision-01.jpg"
+              alt="Stars Factory"
+              className="h-6 w-6 rounded-md object-cover"
+            />
+            <span className="text-xs font-medium tracking-wide text-muted-foreground">Stars Factory</span>
           </div>
 
           <button

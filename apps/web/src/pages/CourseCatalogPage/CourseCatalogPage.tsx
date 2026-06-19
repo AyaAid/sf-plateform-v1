@@ -1,11 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ArrowRight, Layers } from "lucide-react";
+import { Search, ArrowRight, Layers, Check } from "lucide-react";
 import { Input } from "@/shared/ui/Input";
 import { Button } from "@/shared/ui/Button";
 import { Select } from "@/shared/ui/Select";
 import { HudFrame } from "@/shared/ui/HudFrame";
+import { Progress } from "@/shared/ui/Progress";
 import { useCourses } from "@/hooks/useCourses";
+import { useEnrollments } from "@/hooks/useEnrollments";
 
 const CARD_PALETTE = [
   { from: "rgba(108,92,231,0.8)",  to: "rgba(79,70,229,0.8)"  },
@@ -17,17 +19,23 @@ const CARD_PALETTE = [
 ];
 
 const levelOptions = [
-  { value: "all", label: "All Levels" },
-  { value: "Beginner", label: "Beginner" },
-  { value: "Intermediate", label: "Intermediate" },
-  { value: "Advanced", label: "Advanced" },
+  { value: "all", label: "Tous niveaux" },
+  { value: "Beginner", label: "Débutant" },
+  { value: "Intermediate", label: "Intermédiaire" },
+  { value: "Advanced", label: "Avancé" },
 ];
 
 export function CourseCatalogPage() {
   const navigate = useNavigate();
   const { data: courses = [], isLoading: loading, isError } = useCourses();
+  const { data: enrollments = [] } = useEnrollments();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedLevel, setSelectedLevel] = React.useState<string>("all");
+
+  const enrollmentMap = React.useMemo(
+    () => new Map(enrollments.map((e) => [e.courseId, e])),
+    [enrollments]
+  );
 
   const filtered = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -49,8 +57,8 @@ export function CourseCatalogPage() {
         <div className="relative">
           <div className="absolute -left-4 top-0 h-full w-1 bg-gradient-to-b from-white/20 via-violet-500/60 to-transparent opacity-70" />
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white">Course Catalog</h1>
-            <p className="mt-1 text-sm text-white/60">Explore our comprehensive spatial learning courses</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-white">Catalogue de cours</h1>
+            <p className="mt-1 text-sm text-white/60">Explore nos formations spatiales</p>
           </div>
         </div>
 
@@ -59,7 +67,7 @@ export function CourseCatalogPage() {
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/50" />
             <Input
-              placeholder="Search courses..."
+              placeholder="Rechercher un cours..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-11"
@@ -94,10 +102,13 @@ export function CourseCatalogPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((course, idx) => {
               const palette = CARD_PALETTE[idx % CARD_PALETTE.length];
+              const enrollment = enrollmentMap.get(course.id);
+              const isEnrolled = !!enrollment;
+
               return (
                 <HudFrame
                   key={course.id}
-                  className="cursor-pointer p-5 transition-all hover:-translate-y-1"
+                  className="flex cursor-pointer flex-col p-5 transition-all hover:-translate-y-1"
                   onClick={() => navigate(`/app/courses/${course.id}`)}
                 >
                   {/* Thumbnail */}
@@ -109,6 +120,12 @@ export function CourseCatalogPage() {
                     <div className="relative z-10 h-10 w-10 rotate-45 rounded-lg border-2 border-white/30 backdrop-blur-sm">
                       <div className="absolute inset-1.5 rounded-md border border-white/20" />
                     </div>
+                    {isEnrolled && (
+                      <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300 backdrop-blur-sm">
+                        <Check className="h-2.5 w-2.5" />
+                        Inscrit
+                      </div>
+                    )}
                   </div>
 
                   {/* Title + level */}
@@ -136,17 +153,31 @@ export function CourseCatalogPage() {
                     )}
                   </div>
 
-                  {/* CTA */}
-                  <Button
-                    className="mt-4 w-full rounded-xl"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/app/courses/${course.id}`);
-                    }}
-                  >
-                    Voir le cours
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  {/* Progression si inscrit */}
+                  {isEnrolled && (
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{enrollment.completedChapters}/{enrollment.totalChapters} modules</span>
+                        <span>{enrollment.progress}%</span>
+                      </div>
+                      <Progress value={enrollment.progress} />
+                    </div>
+                  )}
+
+                  {/* CTA — toujours en bas */}
+                  <div className="mt-auto pt-4">
+                    <Button
+                      className="w-full rounded-xl"
+                      variant={isEnrolled ? "primary" : "secondary"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/app/courses/${course.id}`);
+                      }}
+                    >
+                      {isEnrolled && enrollment.progress > 0 ? "Continuer" : isEnrolled ? "Commencer" : "Voir le cours"}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
                 </HudFrame>
               );
             })}
@@ -155,7 +186,7 @@ export function CourseCatalogPage() {
 
         {!loading && !isError && filtered.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center text-sm text-white/60">
-            No course matches your search.
+            Aucun cours ne correspond à ta recherche.
           </div>
         )}
       </div>

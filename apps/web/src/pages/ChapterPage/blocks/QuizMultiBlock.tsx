@@ -2,15 +2,19 @@ import React from "react";
 import { CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import type { QuizMultiBlock as QuizMultiBlockType } from "@stars-factory/shared";
+import { AlreadyAnsweredBadge } from "./AlreadyAnsweredBadge";
 
 type Props = {
   block: QuizMultiBlockType;
   onAnswered: () => void;
+  alreadyAnswered?: boolean;
 };
 
-export function QuizMultiBlock({ block, onAnswered }: Props) {
+export function QuizMultiBlock({ block, onAnswered, alreadyAnswered }: Props) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = React.useState(false);
+
+  if (alreadyAnswered && !submitted) return <AlreadyAnsweredBadge label="Quiz — choix multiples" />;
 
   const correct = new Set(block.correct_answers);
   const isFullyCorrect =
@@ -100,7 +104,7 @@ export function QuizMultiBlock({ block, onAnswered }: Props) {
           }}
         >
           <p className="mb-1 font-semibold" style={{ color: isFullyCorrect ? "rgb(52,211,153)" : "rgb(252,165,165)" }}>
-            {isFullyCorrect ? "✓ Parfait !" : "✗ Pas tout à fait — voici les bonnes réponses."}
+            {isFullyCorrect ? "✓ Parfait !" : "✗ Pas tout à fait. Voici les bonnes réponses."}
           </p>
           <p className="text-white/60">{block.explanation}</p>
         </div>

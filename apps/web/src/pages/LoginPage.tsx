@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Sparkles } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { HudFrame } from "@/shared/ui/HudFrame";
@@ -42,11 +42,15 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mb-3 inline-flex items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 p-3">
-            <Sparkles className="h-6 w-6 text-primary" />
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <img
+              src="/Stars%20Factory_Revision-01.jpg"
+              alt="Stars Factory"
+              className="h-12 w-12 rounded-xl object-cover"
+            />
+            <h1 className="text-2xl font-semibold tracking-tight text-white">Stars Factory</h1>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Stars Factory</h1>
-          <p className="mt-1 text-sm text-white/50">Connecte-toi pour continuer</p>
+          <p className="text-sm text-white/50">Connecte-toi pour continuer</p>
         </div>
 
         <HudFrame hover={false} className="p-7">

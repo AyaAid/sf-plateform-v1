@@ -20,10 +20,11 @@ export function Progress({ value, className }: Props) {
       aria-valuenow={clamped}
     >
       <div
-        className="h-full rounded-full bg-gradient-to-r from-primary to-secondary"
+        className="h-full rounded-full"
         style={{
           width: `${clamped}%`,
-          boxShadow: "var(--glow-purple-sm)",
+          background: "linear-gradient(to right, rgb(108, 92, 231), rgb(76, 201, 240))",
+          boxShadow: "0 0 8px rgba(108,92,231,0.3)",
         }}
       />
     </div>

@@ -22,6 +22,11 @@ export const mockUser = {
   name: "Test User",
   passwordHash: null as string | null,
   createdAt: new Date(),
+  role: "USER" as const,
+  avatarUrl: null as string | null,
+  goalDaily: 30,
+  goalWeekly: 5,
+  goalStreak: 14,
 };
 
 // Shape retournée par les routes qui utilisent select sans passwordHash
@@ -30,6 +35,8 @@ export const mockUserPublic = {
   email: "test@example.com",
   name: "Test User",
   createdAt: new Date(),
+  role: "USER" as const,
+  avatarUrl: null as string | null,
 };
 
 // Shape retournée par GET /progress

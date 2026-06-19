@@ -8,7 +8,7 @@ export function LandingPage() {
         <div className="space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Ready for backend integration
+            Prêt pour l'intégration backend
           </div>
 
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
@@ -29,7 +29,7 @@ export function LandingPage() {
             </Button>
             <Button variant="secondary">
             <Link to="/app">
-              Aller au dashboard
+              Aller au tableau de bord
               </Link>
             </Button>
           </div>

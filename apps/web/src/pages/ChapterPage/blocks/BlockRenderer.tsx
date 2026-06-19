@@ -9,22 +9,23 @@ import { CaseStudyBlock } from "./CaseStudyBlock";
 type Props = {
   block: ContentBlock;
   onAnswered: () => void;
+  alreadyAnswered?: boolean;
 };
 
-export function BlockRenderer({ block, onAnswered }: Props) {
+export function BlockRenderer({ block, onAnswered, alreadyAnswered }: Props) {
   switch (block.type) {
     case "text":
       return <TextBlock block={block} />;
     case "quiz":
-      return <QuizBlock block={block} onAnswered={onAnswered} />;
+      return <QuizBlock block={block} onAnswered={onAnswered} alreadyAnswered={alreadyAnswered} />;
     case "quiz_multi":
-      return <QuizMultiBlock block={block} onAnswered={onAnswered} />;
+      return <QuizMultiBlock block={block} onAnswered={onAnswered} alreadyAnswered={alreadyAnswered} />;
     case "quiz-text":
-      return <QuizTextBlock block={block} onAnswered={onAnswered} />;
+      return <QuizTextBlock block={block} onAnswered={onAnswered} alreadyAnswered={alreadyAnswered} />;
     case "mission":
-      return <MissionBlock block={block} onAnswered={onAnswered} />;
+      return <MissionBlock block={block} onAnswered={onAnswered} alreadyAnswered={alreadyAnswered} />;
     case "case-study":
-      return <CaseStudyBlock block={block} />;
+      return <CaseStudyBlock block={block} onAnswered={onAnswered} alreadyAnswered={alreadyAnswered} />;
     default:
       return null;
   }
@@ -32,5 +33,5 @@ export function BlockRenderer({ block, onAnswered }: Props) {
 
 /** Retourne true si le bloc nécessite une interaction de l'utilisateur */
 export function isInteractiveBlock(block: ContentBlock): boolean {
-  return ["quiz", "quiz_multi", "quiz-text", "mission"].includes(block.type);
+  return ["quiz", "quiz_multi", "quiz-text", "mission", "case-study"].includes(block.type);
 }

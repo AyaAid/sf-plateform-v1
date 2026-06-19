@@ -23,6 +23,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }

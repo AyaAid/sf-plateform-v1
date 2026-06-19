@@ -6,8 +6,20 @@ import { HudFrame } from "@/shared/ui/HudFrame";
 import { Button } from "@/shared/ui/Button";
 import { apiClient } from "@/lib/apiClient";
 import { useChapter } from "@/hooks/useChapter";
+import { useCourse } from "@/hooks/useCourse";
 import { BlockRenderer, isInteractiveBlock } from "./blocks/BlockRenderer";
-import type { ProgressRecord } from "@stars-factory/shared";
+import { useBlockProgress, useMarkBlockAnswered } from "@/hooks/useBlockProgress";
+import { useProgress } from "@/hooks/useProgress";
+import type { ChapterSummary, ProgressRecord } from "@stars-factory/shared";
+
+const BLOCK_LABELS: Record<string, string> = {
+  text: "Lecture",
+  quiz: "Quiz",
+  quiz_multi: "Quiz",
+  "quiz-text": "Réponse libre",
+  mission: "Mission",
+  "case-study": "Étude de cas",
+};
 
 export function ChapterPage() {
   const { courseId, chapterId } = useParams();
@@ -15,19 +27,50 @@ export function ChapterPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useChapter(chapterId);
+  const { data: blockProgressData } = useBlockProgress(chapterId);
+  const { data: progressRecords = [], isFetched: progressLoaded } = useProgress();
+  const { data: course } = useCourse(courseId);
+  const markBlockAnswered = useMarkBlockAnswered();
 
-  // Track which interactive block indices have been answered
+  const alreadyCompleted = progressRecords.some(
+    (p) => p.chapterId === chapterId && p.status === "COMPLETED"
+  );
+
+  const [currentBlockIndex, setCurrentBlockIndex] = React.useState(0);
   const [answeredSet, setAnsweredSet] = React.useState<Set<number>>(new Set());
 
-  const markComplete = useMutation({
-    mutationFn: () =>
-      apiClient.put<ProgressRecord>("/progress", { chapterId, status: "COMPLETED" }),
+  // Restore answered blocks from DB
+  React.useEffect(() => {
+    if (!data || !blockProgressData) return;
+    const answeredIds = new Set(blockProgressData.map((r) => r.blockId));
+    const restoredIndices = data.blocks
+      .map((block, i) => (block.id && answeredIds.has(block.id) ? i : -1))
+      .filter((i) => i !== -1);
+    if (restoredIndices.length > 0) {
+      setAnsweredSet(new Set(restoredIndices));
+    }
+  }, [!!data, !!blockProgressData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveProgress = useMutation({
+    mutationFn: (payload: { status: string; score?: number }) =>
+      apiClient.put<ProgressRecord>("/progress", { chapterId, ...payload }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["progress"] });
+      queryClient.invalidateQueries({ queryKey: ["enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
   });
 
-  // Derive interactive block indices once data is loaded
+  const markComplete = useMutation({
+    mutationFn: () =>
+      apiClient.put<ProgressRecord>("/progress", { chapterId, status: "COMPLETED", score: 100 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["progress"] });
+      queryClient.invalidateQueries({ queryKey: ["enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+  });
+
   const interactiveIndices = React.useMemo(() => {
     if (!data) return [];
     return data.blocks
@@ -39,20 +82,67 @@ export function ChapterPage() {
     interactiveIndices.length > 0 &&
     interactiveIndices.every((i) => answeredSet.has(i));
 
-  const isCompleted = markComplete.isSuccess || markComplete.data?.status === "COMPLETED";
+  const isCompleted = alreadyCompleted || markComplete.isSuccess;
 
-  // Auto-trigger COMPLETED when all interactive blocks are answered
+  // Mark IN_PROGRESS once
+  React.useEffect(() => {
+    if (data && progressLoaded && !alreadyCompleted) {
+      saveProgress.mutate({ status: "IN_PROGRESS" });
+    }
+  }, [!!data, progressLoaded, alreadyCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-complete when all interactive blocks are answered
   React.useEffect(() => {
     if (allAnswered && !isCompleted && !markComplete.isPending) {
       markComplete.mutate();
     }
-  }, [allAnswered]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allAnswered, isCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Find next chapter in the same capsule
+  const nextChapter = React.useMemo((): ChapterSummary | null => {
+    if (!course) return null;
+    for (const capsule of course.capsules) {
+      const allChapters = capsule.modules.flatMap((m) => m.chapters);
+      const idx = allChapters.findIndex((ch) => ch.id === chapterId);
+      if (idx !== -1) {
+        return idx < allChapters.length - 1 ? allChapters[idx + 1] : null;
+      }
+    }
+    return null;
+  }, [course, chapterId]);
 
   function handleAnswered(blockIndex: number) {
     setAnsweredSet((prev) => {
       const next = new Set(prev);
       next.add(blockIndex);
+      const score =
+        interactiveIndices.length > 0
+          ? Math.round((next.size / interactiveIndices.length) * 100)
+          : 0;
+      saveProgress.mutate({ status: "IN_PROGRESS", score });
+      const block = data?.blocks[blockIndex];
+      if (block?.id && chapterId) {
+        markBlockAnswered.mutate({ chapterId, blockId: block.id });
+      }
       return next;
+    });
+  }
+
+  function handleTerminer() {
+    if (!isCompleted && !markComplete.isPending) {
+      markComplete.mutate();
+    }
+    const score = interactiveIndices.length > 0
+      ? Math.round((answeredSet.size / interactiveIndices.length) * 100)
+      : 100;
+    navigate(`/app/courses/${courseId}/chapters/${chapterId}/recap`, {
+      state: {
+        chapterTitle: data?.frontmatter?.title ?? "",
+        score,
+        answeredCount: answeredSet.size,
+        totalInteractive: interactiveIndices.length,
+        wasAlreadyCompleted: alreadyCompleted,
+      },
     });
   }
 
@@ -88,8 +178,13 @@ export function ChapterPage() {
   }
 
   const { chapter, frontmatter } = data;
-  const answeredCount = answeredSet.size;
-  const totalInteractive = interactiveIndices.length;
+  const totalBlocks = data.blocks.length;
+  const isFirstBlock = currentBlockIndex === 0;
+  const isLastBlock = currentBlockIndex === totalBlocks - 1;
+  const currentBlock = data.blocks[currentBlockIndex];
+  const isCurrentInteractive = isInteractiveBlock(currentBlock);
+  const isCurrentAnswered = answeredSet.has(currentBlockIndex);
+  const canGoNext = alreadyCompleted || !isCurrentInteractive || isCurrentAnswered;
 
   return (
     <div className="relative p-8">
@@ -116,7 +211,6 @@ export function ChapterPage() {
               </div>
               <h1 className="mt-2 text-xl font-semibold text-white">{frontmatter.title}</h1>
 
-              {/* Learning objectives */}
               {frontmatter.learning_objectives?.length > 0 && (
                 <ul className="mt-3 space-y-1">
                   {frontmatter.learning_objectives.map((obj, i) => (
@@ -135,13 +229,18 @@ export function ChapterPage() {
                   <ArrowLeft className="h-4 w-4" />
                   Cours
                 </Button>
-                <Button variant="secondary" size="sm" className="rounded-xl" onClick={() => navigate(`/app/courses/${courseId}/chapters/${chapterId}/immersive`)}>
-                  Immersive
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={!nextChapter}
+                  onClick={() => nextChapter && navigate(`/app/courses/${courseId}/chapters/${nextChapter.id}`)}
+                >
+                  Module suivant
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>
 
-              {/* Completion badge */}
               {isCompleted ? (
                 <div
                   className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
@@ -150,50 +249,95 @@ export function ChapterPage() {
                   <Check className="size-3" />
                   Module terminé
                 </div>
-              ) : totalInteractive > 0 ? (
+              ) : interactiveIndices.length > 0 ? (
                 <div
                   className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
                   style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", color: "rgba(255,255,255,0.5)" }}
                 >
                   <Zap className="size-3 text-violet-400" />
-                  {answeredCount} / {totalInteractive} exercices
+                  {answeredSet.size} / {interactiveIndices.length} exercices
                 </div>
               ) : null}
             </div>
           </div>
         </HudFrame>
 
-        {/* ── Blocks ── */}
-        {data.blocks.map((block, idx) => (
-          <BlockRenderer
-            key={block.id ?? idx}
-            block={block}
-            onAnswered={() => handleAnswered(idx)}
-          />
-        ))}
+        {/* ── Barre de progression par blocs ── */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            {data.blocks.map((block, i) => {
+              const answered = answeredSet.has(i);
+              const isCurrent = i === currentBlockIndex;
+              const interactive = isInteractiveBlock(block);
+              return (
+                <div
+                  key={block.id ?? i}
+                  className="h-1 flex-1 rounded-full transition-all duration-300"
+                  style={{
+                    background: answered
+                      ? "rgb(16,185,129)"
+                      : isCurrent
+                      ? interactive ? "rgb(139,92,246)" : "rgba(255,255,255,0.8)"
+                      : "rgba(255,255,255,0.12)",
+                  }}
+                />
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-xs text-white/35">
+            <span>{BLOCK_LABELS[currentBlock.type] ?? "Bloc"}</span>
+            <span>{currentBlockIndex + 1} / {totalBlocks}</span>
+          </div>
+        </div>
 
-        {/* ── Completion banner ── */}
-        {isCompleted && (
-          <div
-            className="rounded-2xl p-6 text-center"
-            style={{
-              background: "linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.08))",
-              border: "1px solid rgba(16,185,129,0.25)",
-              boxShadow: "0 0 40px rgba(16,185,129,0.08)",
-            }}
+        {/* ── Bloc courant ── */}
+        <BlockRenderer
+          key={currentBlock.id ?? currentBlockIndex}
+          block={currentBlock}
+          onAnswered={() => handleAnswered(currentBlockIndex)}
+          alreadyAnswered={answeredSet.has(currentBlockIndex)}
+        />
+
+        {/* ── Navigation ── */}
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            className="rounded-xl"
+            onClick={() => setCurrentBlockIndex((i) => i - 1)}
+            disabled={isFirstBlock}
           >
-            <Check className="mx-auto mb-2 size-8 text-emerald-400" />
-            <p className="font-semibold text-emerald-300">Module complété !</p>
-            <p className="mt-1 text-sm text-white/40">Tous les exercices ont été répondus.</p>
+            <ArrowLeft className="h-4 w-4" />
+            Précédent
+          </Button>
+
+          {isLastBlock ? (
             <Button
-              className="mt-4 rounded-xl"
-              onClick={() => navigate(`/app/courses/${courseId}`)}
+              className="flex-1 rounded-xl"
+              onClick={handleTerminer}
+              disabled={!canGoNext}
+              style={
+                isCompleted
+                  ? { background: "rgba(16,185,129,0.2)", borderColor: "rgba(16,185,129,0.4)", color: "rgb(52,211,153)" }
+                  : {}
+              }
             >
-              Retour au cours
+              {isCompleted ? (
+                <><Check className="mr-2 h-4 w-4" />Terminé</>
+              ) : (
+                "Terminer le module"
+              )}
+            </Button>
+          ) : (
+            <Button
+              className="flex-1 rounded-xl"
+              onClick={() => setCurrentBlockIndex((i) => i + 1)}
+              disabled={!canGoNext}
+            >
+              Suivant
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-          </div>
-        )}
+          )}
+        </div>
 
       </div>
     </div>

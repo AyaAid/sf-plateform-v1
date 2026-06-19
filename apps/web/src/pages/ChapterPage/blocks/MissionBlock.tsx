@@ -4,19 +4,23 @@ import { Button } from "@/shared/ui/Button";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MissionBlock as MissionBlockType } from "@stars-factory/shared";
+import { AlreadyAnsweredBadge } from "./AlreadyAnsweredBadge";
 
 type Props = {
   block: MissionBlockType;
   onAnswered: () => void;
+  alreadyAnswered?: boolean;
 };
 
 type StepState = "idle" | "correct" | "wrong";
 
-export function MissionBlock({ block, onAnswered }: Props) {
+export function MissionBlock({ block, onAnswered, alreadyAnswered }: Props) {
   const [currentStep, setCurrentStep] = React.useState(0);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [stepState, setStepState] = React.useState<StepState>("idle");
   const [completed, setCompleted] = React.useState(false);
+
+  if (alreadyAnswered && !completed) return <AlreadyAnsweredBadge label="Mission" />;
 
   const step = block.steps[currentStep];
   const isLast = currentStep === block.steps.length - 1;

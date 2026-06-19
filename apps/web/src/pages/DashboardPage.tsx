@@ -6,7 +6,7 @@ import { HudFrame } from "@/shared/ui/HudFrame";
 import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/context/AuthContext";
 import { useCourses } from "@/hooks/useCourses";
-import { useProgress } from "@/hooks/useProgress";
+import { useEnrollments } from "@/hooks/useEnrollments";
 
 const COURSE_PALETTE = [
   { from: "rgba(108,92,231,0.9)",  to: "rgba(79,70,229,0.9)"  },
@@ -21,22 +21,10 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { data: courses = [] } = useCourses();
-  const { data: progressRecords = [] } = useProgress();
+  const { data: enrollments = [] } = useEnrollments();
 
-  // Calcul du % de progression par cours :
-  // On compte les chapitres COMPLETED parmi tous les chapitres du cours
-  const coursesWithProgress = courses.map((course) => {
-    const allChapterIds = course._count.capsules; // nombre de capsules (approximation)
-    const completedCount = progressRecords.filter(
-      (p) => p.status === "COMPLETED"
-    ).length;
-    const progress = allChapterIds > 0
-      ? Math.round((completedCount / allChapterIds) * 100)
-      : 0;
-    return { ...course, progress };
-  });
-
-  const inProgress = coursesWithProgress.filter((c) => c.progress > 0 && c.progress < 100);
+  const inProgress = enrollments.filter((e) => e.startedChapters > 0 && e.progress < 100);
+  const completedChaptersTotal = enrollments.reduce((sum, e) => sum + e.completedChapters, 0);
 
   const stats = [
     {
@@ -49,15 +37,15 @@ export function DashboardPage() {
     },
     {
       label: "Chapitres terminés",
-      value: String(progressRecords.filter((p) => p.status === "COMPLETED").length),
+      value: String(completedChaptersTotal),
       icon: TrendingUp,
       iconBg: "rgba(16,185,129,0.2)",
       iconGlow: "0 0 14px rgba(16,185,129,0.5), 0 0 28px rgba(16,185,129,0.2)",
       iconColor: "text-emerald-400",
     },
     {
-      label: "En cours",
-      value: String(progressRecords.filter((p) => p.status === "IN_PROGRESS").length),
+      label: "Cours en cours",
+      value: String(inProgress.length),
       icon: Clock,
       iconBg: "rgba(6,182,212,0.2)",
       iconGlow: "0 0 14px rgba(6,182,212,0.5), 0 0 28px rgba(6,182,212,0.2)",
@@ -75,17 +63,17 @@ export function DashboardPage() {
           <HudFrame className="space-y-2">
             <div className="flex items-center gap-2">
               <h1 className="text-foreground">
-                Welcome back{user?.name ? `, ${user.name}` : ""}!
+                Bienvenue{user?.name ? `, ${user.name}` : ""} !
               </h1>
               <Sparkles className="h-5 w-5 animate-pulse text-secondary" />
             </div>
             <p className="text-muted-foreground">
-              Continue your spatial learning journey
+              Continue ton parcours d'apprentissage
             </p>
             <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-2">
                 <Zap className="h-4 w-4 text-secondary" />
-                {progressRecords.length} activité{progressRecords.length !== 1 ? "s" : ""}
+                {enrollments.length} cours inscrit{enrollments.length !== 1 ? "s" : ""}
               </span>
               <span className="inline-flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
@@ -126,7 +114,7 @@ export function DashboardPage() {
         {/* Continue Learning */}
         <div>
           <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-foreground">Continue Learning</h2>
+            <h2 className="text-foreground">Reprendre l'apprentissage</h2>
             <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
           </div>
 
@@ -143,10 +131,10 @@ export function DashboardPage() {
             </HudFrame>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {inProgress.map((course, idx) => {
+              {inProgress.map((enrollment, idx) => {
                 const palette = COURSE_PALETTE[idx % COURSE_PALETTE.length];
                 return (
-                <HudFrame key={course.id}>
+                <HudFrame key={enrollment.courseId}>
                   <div
                     className="relative mb-4 flex h-32 items-center justify-center overflow-hidden rounded-xl"
                     style={{ background: `linear-gradient(135deg, ${palette.from}, ${palette.to})` }}
@@ -157,21 +145,23 @@ export function DashboardPage() {
                     </div>
                   </div>
 
-                  <h3 className="mb-4 text-foreground">{course.title}</h3>
+                  <h3 className="mb-4 text-foreground">{enrollment.title}</h3>
 
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="text-foreground">{course.progress}%</span>
+                      <span className="text-muted-foreground">
+                        {enrollment.completedChapters} / {enrollment.totalChapters} chapitres
+                      </span>
+                      <span className="text-foreground">{enrollment.progress}%</span>
                     </div>
-                    <Progress value={course.progress} />
+                    <Progress value={enrollment.progress} />
                   </div>
 
                   <Button
                     className="mt-4 w-full rounded-xl"
-                    onClick={() => navigate(`/app/courses/${course.id}`)}
+                    onClick={() => navigate(`/app/courses/${enrollment.courseId}`)}
                   >
-                    Continue Learning
+                    Continuer
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </HudFrame>

@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.env.osx": {
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
+  }
+}
