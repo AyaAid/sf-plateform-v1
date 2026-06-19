@@ -20,7 +20,11 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
+const corsOrigin = process.env.CORS_ORIGIN;
+app.use(cors({
+  origin: corsOrigin ? corsOrigin.split(",") : true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
@@ -40,5 +44,9 @@ app.use("/users", usersRouter);
 app.use("/ai", aiRouter);
 app.use(errorHandler);
 
-const port = Number(process.env.PORT || 3001);
-app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+export default app;
+
+if (require.main === module) {
+  const port = Number(process.env.PORT || 3001);
+  app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+}
